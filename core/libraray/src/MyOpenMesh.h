@@ -4,6 +4,7 @@
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
 #include "PointVector.h"
+
 /*
 	在进行半边迭代求取轮廓线的时候，发现迭代需要消耗一定的内存资源，由于vs所分配的资源有限，所以进行大迭代的情况下很容易出现资源不足导致程序崩溃，所以尽量使用while或者for进行处理
 */
@@ -30,12 +31,12 @@ public:
 	~MyOpenMesh() {};
 
 	struct OutNoraml {  //很重要。两个class都用到了
-		MyMesh::Point a; //其实只要增量就可以了，这个可以在以后省掉，这个用来调试看结果的！
-		MyMesh::Normal n;
+		MyMesh::Point a; //其实只要增量就可以了，这个可以在以后省掉，这个用来调试看结果的！,扩散后的坐标
+		MyMesh::Normal n; //扩散的法向量
 		float x=0;  //扩增系数
 		float d=0;	//记录起始点到该点的距离
 		MyMesh::Point f=MyMesh::Point(0,0,0); //记录相对于原来的递增量
-		MyMesh::Point pro = MyMesh::Point(0, 0, 0); //记录增长的比率
+		//MyMesh::Point pro = MyMesh::Point(0, 0, 0); //记录增长的比率
 		float k = 0;//扩散增量
 	};
 	
@@ -54,6 +55,7 @@ public:
 	void FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, MyMesh::VertexHandle *p);
 
 	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfaceCoe* met);
+	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met, vector<MyMesh::Point>&css); //debug
 	int TotalVertex() {
 		return mesh.n_vertices();
 	}
@@ -108,16 +110,18 @@ public:
 
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
-	float ReturnLength() { return mLength; }
-	void AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点
-	void AllocateXCoe2();			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
+	
+	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
+	float AllocateXCoe2();			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
 
 	float DistSurface(MyMesh::Point a) {
 		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
 	};
 	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
 	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s, float &sc);
-	
+
+	float ReturnExtension() { return mExtension; }
+	float ReturnLength() { return mLength; }
 private:
 	MyMesh &mesh;
 
@@ -135,12 +139,11 @@ private:
 	float mExtension = 0;
 
 	vector<MyOutNormal> mOutline2;
+	void AddOutlinePoint(MyMesh::VertexHandle a, MyMesh::VertexHandle b);//添加outline主体的点
 
-	void AddOutlinePoint(MyMesh::VertexHandle a, MyMesh::VertexHandle b);
-
-	void OutlineRefine();		//平滑outlien
+	void OutlineRefine();		//平滑outline
 	void CoquerMidEnd();		//寻找中值点以及终值点
-	void OutlineExpansion();	//变形扩围，放入相应的allocatexcoe里面
+	float OutlineExpansion();	//变形扩围，放入相应的allocatexcoe里面
 
 	int NextHalfEdgeJudge(MyMesh::HalfedgeHandle heh) {
 		MyMesh::VertexHandle vertex_i = mesh.to_vertex_handle(heh);		//指向点
@@ -225,6 +228,16 @@ private:
 		}
 		return s;
 	};
+
+	struct cmp {
+		float a;
+		int i;
+		bool operator <(const struct cmp  &b) const
+		{
+			return b.a > a;
+		}
+	};
+	//void AxieSurfacePoint(MyMesh::Point a, MyMesh::Point b, MyMesh::Point cs); //计算点在直线上的投影
 };
 
 typedef struct SurfaceCoe::CutArry MySurCutArry;

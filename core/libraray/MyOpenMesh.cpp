@@ -116,75 +116,65 @@ void MyOpenMesh::BottomVertex(vector<Vector3f>*a) {
 	}
 }
 
-//void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met) {
-//
-//	MyMesh::Normal m;
-//	MyMesh::Point p,p1,p2;// n为递增向量
-//	float s1, s2; float lin=0;
-//	int k = mesh.n_vertices();
-//	int oc = 0;
-//	for (MyMesh::VertexIter v_it = mesh.vertices_begin();v_it != mesh.vertices_end(); ++v_it)
-//	{
-//		oc++;
-//		if (!(oc%10000)) {
-//			cout << "now is :" << (oc*100/k)<<"%"<< endl;
-//		}
-//		if (mesh.normal(*v_it)[2] > 0) {
-//			continue;
-//		}
-//		p = mesh.point(*v_it);
-//		//if (p[1] < 1) { //for debug;
-//		//	int ccd = 000;
-//		//}
-//		if (met->DistSurface(p)<0) {
-//			for (int i = 0; i < CUTSECTION - 1; i++) {
-//				lin = arr[i]->DistSurface(p);
-//				if ( lin< 0) {
-//					if (i == (CUTSECTION - 2)) {
-//						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
-//					}
-//					continue;
-//				}else {
-//					if (lin > 0) {
-//						p2 = arr[i]->FindNearestPoint(p, s2);
-//						p1 = i ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1);
-//						p+= p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
-//					}else {
-//						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
-//					}
-//					break;
-//				}
-//			}
-//		}else if (met->DistSurface(p) > 0) {
-//			for (int i = (CUTSECTION-1); i < arr.size(); i++) {
-//				lin = arr[i]->DistSurface(p);
-//				if (lin> 0) {
-//					if (i == (arr.size() - 1)) {
-//						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
-//					}
-//					continue;
-//				}
-//				else {
-//					if (lin < 0) {
-//						p2 = arr[i]->FindNearestPoint(p, s2);
-//						p1 = i>(CUTSECTION-1) ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1);
-//						p+= p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
-//					}else {
-//						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
-//					}
-//					break;
-//				}
-//			}
-//		}else {
-//			p+=met->FindNearestPoint(p,s1); //s==0;
-//		}
-//		mesh.set_point(*v_it, p);
-//	}
-//}
+vector<MyMesh::Point> MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met,vector<MyMesh::Point>&css) {
+	MyMesh::Point  p,p1,p2;// n为递增向量
+	float s1, s2; float lin=0;
+	vector<MyMesh::Point>  result;
+	for (int j=0;j<css.size();j++)// p :css)
+	{
+		p = css[j];
+		if (met->DistSurface(p)<0) {
+			for (int i = 0; i < CUTSECTION - 1; i++) {
+				lin = arr[i]->DistSurface(p);
+				if ( lin< 0) {
+					if (i == (CUTSECTION - 2)) {
+						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
+					}
+					continue;
+				}else {
+					if (lin > 0) {
+						p2 = arr[i]->FindNearestPoint(p, s2);
+						p1 = i ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1);
+						p+= p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
+					}else {
+						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
+					}
+					break;
+				}
+			}
+		}else if (met->DistSurface(p) > 0) {
+			for (int i = (CUTSECTION-1); i < arr.size(); i++) {
+				lin = arr[i]->DistSurface(p);
+				if (lin> 0) {
+					if (i == (arr.size() - 1)) {
+						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
+					}
+					continue;
+				}
+				else {
+					if (lin < 0) {
+						p2 = arr[i]->FindNearestPoint(p, s2);
+						p1 = i>(CUTSECTION-1) ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1);
+						p+= p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
+					}else {
+						p+= arr[i]->FindNearestPoint(p, s1); //s==0;
+					}
+					break;
+				}
+			}
+		}else {
+			p+=met->FindNearestPoint(p,s1); //s==0;
+		}
+		result.push_back(p);
+	}
+	return result;
+}
+
 void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met) {
 	//MyMesh::Normal m;
-	MyMesh::Point p, p1, p2,pro;// n为递增向量
-	float s1, s2,sa=0,sb=0; float lin = 0;
+	cout << "Now is shoe Expansing..." << endl;
+	MyMesh::Point p, p1, p2;// n为递增向量
+	float s1, s2; float lin = 0;
 	int k = mesh.n_vertices();
 	int oc = 0;
 	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
@@ -193,34 +183,27 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met) {
 		if (!(oc % 10000)) {
 			cout << "now is :" << (oc * 100 / k) << "%" << endl;
 		}
-		if (mesh.normal(*v_it)[2] > 0) {
+		/*if (mesh.normal(*v_it)[2] > 0) {
 			continue;
-		}
+		}*/
 		p = mesh.point(*v_it);
-		//m = mesh.normal(*v_it);
-		//m.normalize();
 		if (met->DistSurface(p)<0) {
 			for (int i = 0; i < CUTSECTION - 1; i++) {
 				lin = arr[i]->DistSurface(p);
 				if (lin< 0) {
 					if (i == (CUTSECTION - 2)) {
-						pro= arr[i]->FindNearestPoint(p, s1,sa); //s==0;
-						p += pro*sa;
+						p += arr[i]->FindNearestPoint(p, s1); //s==0;
 					}
 					continue;
 				}
 				else {
 					if (lin > 0) {
-						p2 = arr[i]->FindNearestPoint(p, s2,sb);
-						p1 = i ? arr[i - 1]->FindNearestPoint(p, s1,sa) : met->FindNearestPoint(p, s1,sa);
-						pro= p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
-						pro.normalize();
-						sa= sa*(s2 / (s1 + s2)) + sb*(s1 / (s1 + s2));
-						p += sa*pro;
+						p2 = arr[i]->FindNearestPoint(p, s2);
+						p1 = i ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1);
+						p += p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
 					}
 					else {
-						pro= arr[i]->FindNearestPoint(p, s1,sa); //s==0;
-						p += sa*pro;
+						p += arr[i]->FindNearestPoint(p, s1); //s==0;
 					}
 					break;
 				}
@@ -231,32 +214,28 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met) {
 				lin = arr[i]->DistSurface(p);
 				if (lin> 0) {
 					if (i == (arr.size() - 1)) {
-						pro= arr[i]->FindNearestPoint(p, s1,sa); //s==0;
-						p += sa*pro;
+						p += arr[i]->FindNearestPoint(p, s1); //s==0;
 					}
 					continue;
 				}
 				else {
 					if (lin < 0) {
-						p2 = arr[i]->FindNearestPoint(p, s2,sb);
-						p1 = i>(CUTSECTION - 1) ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1,sb);
-						pro= p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
-						pro.normalize();
-						sa = sa*(s2 / (s1 + s2)) + sb*(s1 / (s1 + s2));
-						p += sa*pro;
+						p2 = arr[i]->FindNearestPoint(p, s2);
+						p1 = i>(CUTSECTION - 1) ? arr[i - 1]->FindNearestPoint(p, s1) : met->FindNearestPoint(p, s1);
+						p += p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
 					}
 					else {
-						pro= arr[i]->FindNearestPoint(p, s1,sa); //s==0;
-						p += pro*sa;
+						p += arr[i]->FindNearestPoint(p, s1); //s==0;
 					}
 					break;
 				}
 			}
+		}else {
+			p += met->FindNearestPoint(p, s1); //s==0;
 		}
-		else {
-			pro= met->FindNearestPoint(p, s1,sa); //s==0;
-			p += pro*sa;
-		}
+		/*if (p.norm() > 999) {  //测试是否有坏点
+			cout<<"error points"<<endl;
+		}*/
 		mesh.set_point(*v_it, p);
 	}
 }
@@ -419,10 +398,10 @@ void SurfaceCoe::AddOutlinePoint(MyMesh::VertexHandle a, MyMesh::VertexHandle b)
 	mOutline2.push_back(mc);
 }
 
-void SurfaceCoe::AllocateXCoe(float tar){
+float SurfaceCoe::AllocateXCoe(float tar){
 	if ((!mLen[0]) || (!mLen[1])) {
 		cout << "zero error!" << endl;
-		return;
+		return -1;
 	}
 	for (int i = 1; i <= mIth[0]; i++) {
 		mOutline2[i].x = mOutline2[i].d / mLen[0];
@@ -431,13 +410,13 @@ void SurfaceCoe::AllocateXCoe(float tar){
 		mOutline2[i].x = abs(mOutline2[i].d-mLen[0]-mLen[1]) / mLen[1];
 	}
 	mExtension = tar>0 ? -tar : tar;
-	OutlineExpansion();
+	return OutlineExpansion();
 }
 
-void SurfaceCoe::AllocateXCoe2() {
+float SurfaceCoe::AllocateXCoe2() {
 	if ((!mLen[0]) || (!mLen[1])) {
 		cout << "zero error2!" << endl;
-		return;
+		return -1;
 	}
 	for (int i = 0; i <= mIth[0]; i++) {
 		mOutline2[i].x = (mLen[0]-mOutline2[i].d) / mLen[0];
@@ -446,10 +425,10 @@ void SurfaceCoe::AllocateXCoe2() {
 		mOutline2[i].x = (mOutline2[i].d-mLen[1]-mLen[0]) / mLen[2];
 	}
 	mExtension = mX >0 ? -mLength*mX : mLength*mX; //由扩散系数转换为扩散距离
-	OutlineExpansion();
+	return OutlineExpansion();
 }
 
-void SurfaceCoe::OutlineExpansion() {  //(float tar)
+float SurfaceCoe::OutlineExpansion() {  //(float tar)
 	vector<MyOutNormal> bso = mOutline2;
 	float s = 0, li = mExtension,pp=0;
 	while (abs(abs(s - mLength) - abs(mExtension)) > ADDDIFFERENCE) {
@@ -473,6 +452,7 @@ void SurfaceCoe::OutlineExpansion() {  //(float tar)
 		bb[2] = bb[2] ? bb[2] : 1;
 		mOutline2[j].pro = MyMesh::Point(aa[0] / bb[0], aa[1] / bb[1], aa[2] / bb[2]);*/
 	}
+	return li;
 }
 
 bool SurfaceCoe::OutlineEigen(vector<Vector3f> *a) {
@@ -586,22 +566,6 @@ Vector3f SurfaceCoe::TempVector() {
 	return Vector3f(mVertexStart[0]-38.5335, mVertexStart[1]+0.4859, mVertexStart[2]-157.5532);
 }
 
-MyMesh::Point SurfaceCoe::FindNearestPoint(MyMesh::Point a,float &s) {
-	float ss = 0,mig= MAXIMUMX;
-	int k = 0;
-	for (int i = 0; i < mOutline2.size();i++) {
-		ss = DistPoints(a, mOutline2[i].a);
-		if (ss < mig) {
-			mig = ss;
-			k = i;
-		}
-	}
-	s = mig;
-	/*if (mOutline2[k].x == 0) {
-		return MyMesh::Point(0, 0, 0);
-	}*/
-	return mOutline2[k].n;  // mOutline2[k].f
-}
 MyMesh::Point SurfaceCoe::FindNearestPoint(MyMesh::Point a, float &s,float &sc) {
 	float ss = 0, mig = MAXIMUMX;
 	int k = 0;
@@ -616,6 +580,55 @@ MyMesh::Point SurfaceCoe::FindNearestPoint(MyMesh::Point a, float &s,float &sc) 
 	/*if (mOutline2[k].x == 0) {
 	return MyMesh::Point(0, 0, 0);
 	}*/
-	sc=mOutline2[k].k;
+	sc=mOutline2[k].x; //k
 	return mOutline2[k].n;  // mOutline2[k].f
+}
+
+MyMesh::Point SurfaceCoe::FindNearestPoint(MyMesh::Point a, float &s) {
+	int k = 0, n = 0, m = 0;
+	s = abs(DistSurface(a));
+	float ss = 0, mig = MAXIMUMX;
+	for (int i = 0; i < mOutline2.size(); i++) {
+		ss = DistPoints(a, mOutline2[i].a);
+		if (ss < mig) {
+			mig = ss;
+			k = i;
+		}
+	}
+	if (!mOutline2[k].x) {
+		return MyMesh::Point(0, 0, 0);
+	}
+	MyMesh::Point fb, fc, fd, j1, j2, p;
+	fb = mOutline2[k].a;
+	float t;
+	for (int i = 1; i < 4; i++) {
+		m = k - i;
+		m = m < 0 ? mOutline2.size()+m : m;
+
+		fc = mOutline2[m].a;
+		fd = fb - fc;
+		t = ((a[0] - fb[0])*fd[0] + (a[1] - fb[1])*fd[1] + (a[2] - fb[2])*fd[2]) / (fd[0] * fd[0] + fd[1] * fd[1] + fd[2] * fd[2]);
+		p = t*fd + fb;
+		j1 = fb - p;
+		j2 = fc - p;
+		if ((j1[0] * j2[0] + j1[1] * j2[1] + j1[2] * j2[2]) < 0) {
+			float s1 = j1.norm(), s2 = j2.norm();
+			return (mOutline2[k].f*s2 / (s1 + s2) + mOutline2[m].f*s1 / (s1 + s2));
+		}
+
+		n = k + i;
+		n = n >= mOutline2.size() ? n- mOutline2.size() : n;
+
+		fc = mOutline2[n].a;
+		fd = fb - fc;
+		t = ((a[0] - fb[0])*fd[0] + (a[1] - fb[1])*fd[1] + (a[2] - fb[2])*fd[2]) / (fd[0] * fd[0] + fd[1] * fd[1] + fd[2] * fd[2]); //Vector3f s = t*d + a; 	t = (c-a).dot(d) / (d.dot(d));
+		p = t*fd + fb;
+		j1 = fb - p;
+		j2 = fc - p;
+		if ((j1[0] * j2[0] + j1[1] * j2[1] + j1[2] * j2[2]) < 0) {
+			float s1 = j1.norm(), s2 = j2.norm();
+			return (mOutline2[k].f*s2 / (s1 + s2) + mOutline2[n].f*s1 / (s1 + s2));
+		}
+	}
+	return mOutline2[k].f;//MyMesh::Point(0,0,0);  // mOutline2[k].f
 }

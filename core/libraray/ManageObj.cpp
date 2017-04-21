@@ -145,11 +145,38 @@ void ManageObj::ReadMeshPoints(vector<MyMesh::Point>& ab) {
 	ios::sync_with_stdio(true);
 	FreeBuf();
 }
-
 MyMesh::Point ManageObj::StringFloat3(string s) {
 	float  d[3];
 	sscanf(s.c_str(), "%f,%f,%f\n", d, d + 1, d + 2);
 	return MyMesh::Point(d[0], d[1], d[2]);
+}
+
+void ManageObj::ReadMeshPoints2(vector<MyMesh::Point>& ab) {
+	stringstream ss(mbuffer);
+	string s;
+	ios::sync_with_stdio(false);
+	cout << "Now is reading ReadMeshPoints file....." << endl;
+	while (getline(ss, s)) {
+		ab.push_back(StringFloat4(s));
+	}
+	ios::sync_with_stdio(true);
+	FreeBuf();
+}
+MyMesh::Point ManageObj::StringFloat4(string s) {
+	float  d[3];
+	int i;
+	sscanf(s.c_str(), "Pt%d %f %f %f\n", &i,d, d + 1, d + 2);
+	return MyMesh::Point(d[0], d[1], d[2]);
+}
+
+
+void ManageObj::OutFileVectorFloat(vector<float>&a,char * outfilename) {
+	FILE *fp;
+	fopen_s(&fp, outfilename, "w");
+	for (int i = 0; i < a.size();i++) {
+		fprintf(fp,"%d : %f \n",i,a[i]);
+	}
+	fclose(fp);
 }
 
 
@@ -158,6 +185,16 @@ void ManageObj::OutFileOutlinePointXyz(vector<Vector3f>* vp,char * outfilename) 
 	fopen_s(&fp, outfilename, "w");
 	for (unsigned int i = 0; i < (*vp).size(); i++) {
 		fprintf(fp, "%f %f %f\n", (*vp)[i][0], (*vp)[i][1], (*vp)[i][2]);
+	}
+	fclose(fp);
+}
+
+void ManageObj::OutFileOutlinePointXyz(vector<MyMesh::Point>*vp, char * outfilename) {
+	FILE *fp;
+	fopen_s(&fp, outfilename, "w");
+	int j;
+	for (unsigned int i = 0; i < (*vp).size(); i++) {
+		fprintf(fp, "%f %f %f\n",(*vp)[i][0], (*vp)[i][1], (*vp)[i][2]);
 	}
 	fclose(fp);
 }

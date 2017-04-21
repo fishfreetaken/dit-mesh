@@ -94,12 +94,14 @@ public:
 	void ReadXyz();
 	void ReadStl();
 	void ReadMeshPoints(vector<MyMesh::Point>& ab);
+	void ReadMeshPoints2(vector<MyMesh::Point>& ab);
 
 	static void OutFileOutlinePointXyz(vector<Vector3f>* vp, char * outfilename);
+	static void OutFileOutlinePointXyz(vector<MyMesh::Point>* vp, char * outfilename);
 
 	static void OutFilePointObj(vector<Vector3f>* vp,const char * outfilenam);
 	static void OutFilePointObj(vector<float> *a, const char * outfilenam);
-
+	static void OutFileVectorFloat(vector<float>&a, char * outfilename);
 	
 
 	//void ObjLine();
@@ -116,6 +118,7 @@ private:
 	Vector3i StringToIntV(string s);
 
 	MyMesh::Point StringFloat3(string s);
+	MyMesh::Point StringFloat4(string s);
 
 	void FreeBuf() { free(mbuffer); };
 
