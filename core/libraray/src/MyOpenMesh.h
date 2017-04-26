@@ -9,6 +9,7 @@
 	在进行半边迭代求取轮廓线的时候，发现迭代需要消耗一定的内存资源，由于vs所分配的资源有限，所以进行大迭代的情况下很容易出现资源不足导致程序崩溃，所以尽量使用while或者for进行处理
 */
 typedef OpenMesh::PolyMesh_ArrayKernelT<>  MyMesh;
+typedef Quaternion<float, 0> Quaternionx;
 
 #define ADDDIFFERENCE  0.0005
 
@@ -19,8 +20,9 @@ typedef OpenMesh::PolyMesh_ArrayKernelT<>  MyMesh;
 #define CUTINTERVEL 10 //mm
 
 #define CUTSECTION 22  //将跖趾围到高跟处分成22段 21条截面  第一条切线忽略，从arry 1 开始
-#define CUTSECTION2 17  //将跖趾围到鞋尖点处分成17段 16条截面 arr 总共37条截面   第一条切线忽略，从arry
-  
+#define CUTSECTION2 15  //将跖趾围到鞋尖点处分成15段 14条截面 arr 总共35条截面   第一条切线忽略，从arry
+#define CUTSECTION3  33  //32个截面
+
 typedef class SurfaceCoe SurFC;
 class MyOpenMesh
 {
@@ -37,7 +39,23 @@ public:
 		float d=0;	//记录起始点到该点的距离
 		MyMesh::Point f=MyMesh::Point(0,0,0); //记录相对于原来的递增量
 		//MyMesh::Point pro = MyMesh::Point(0, 0, 0); //记录增长的比率
-		float k = 0;//扩散增量
+		//float k = 0;//扩散增量
+	};
+
+	struct OutBottom {
+		MyMesh::VertexHandle n;
+		MyMesh::Point a;
+		MyMesh::Normal s;
+		//int i=0;
+		float x = 0;
+		//bool operator < (const struct OutBottom &m)const {
+		//	return x > m.x;
+		//	//return i < a.i;
+		//}
+		bool operator < (const struct OutBottom &m)const {
+			return x > m.x;
+			//return i < a.i;
+		}
 	};
 	
 	MyMesh  mesh;
@@ -55,7 +73,11 @@ public:
 	void FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, MyMesh::VertexHandle *p);
 
 	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfaceCoe* met);
+	void ShoeExpansion(vector<SurfaceCoe*> &arrx, SurfaceCoe* met, int ith);
 	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met, vector<MyMesh::Point>&css); //debug
+
+	set<struct OutBottom> ShoeBottomLine(vector<MyMesh::Point>&a);
+
 	int TotalVertex() {
 		return mesh.n_vertices();
 	}
@@ -82,6 +104,7 @@ private:
 	//vector<MyMesh::VertexHandle> mWristTop;		//碗口顶部部分；
 };
 
+typedef struct MyOpenMesh::OutBottom MyOutBottom;
 typedef struct MyOpenMesh::OutNoraml MyOutNormal;
 
 
@@ -96,19 +119,22 @@ public:
 	struct CutArry {
 		MyMesh::VertexHandle a;
 		float x = 1;
+		Vector3f n; //这个可以用来表示该界面的法向向量
 	};
 
-	bool Init(int a);
+	bool Init(int cmd);
 	bool Init();
 	void InitTwoPoints(MyMesh::Point a, MyMesh::Point b) { mVertexMid = a; mVertexEnd = b; CoquerMidEnd(); } //用于一条直线与一个点确定一个平面
 
 	Vector3f AxieCut(float heelhight);//根据中轴线将鞋楦进行切割分切 (等会儿再切！！！)  给出中轴线向量
 	Vector3f TempVector(); //临时用手点出来点作为中轴线
 	void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
+	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi,int &ith);   //给出沿横切线的分割点；
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
 
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
+	bool OutlineEigen(vector<Vector4f> *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
 	
 	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
@@ -118,10 +144,10 @@ public:
 		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
 	};
 	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
-	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s, float &sc);
 
 	float ReturnExtension() { return mExtension; }
 	float ReturnLength() { return mLength; }
+	Vector3f ReturnCoe() { return mCoeABC; }
 private:
 	MyMesh &mesh;
 
@@ -228,6 +254,83 @@ private:
 		}
 		return s;
 	};
+
+	void CreatGauss(double sigma, double **pdKernel, int *pnWidowSize)
+	{
+		int nCenter;//数组中心点  
+		double dDis;//数组中一点到中心点距离  
+
+		//中间变量  
+		double dValue;
+		double dSum;
+		dSum = 0;
+
+		*pnWidowSize = 1 + 2 * ceil(3 * sigma);// [-3*sigma,3*sigma] 以内数据，会覆盖绝大部分滤波系数  
+
+		nCenter = (*pnWidowSize) / 2;
+		//生成高斯数据  
+		for (int i = 0; i<(*pnWidowSize); i++)
+		{
+			dDis = (double)(i - nCenter);
+			dValue = exp(-(1 / 2)*dDis*dDis / (sigma*sigma)) / (sqrt(2 * 3.1415926)*sigma);
+			(*pdKernel)[i] = dValue;
+			dSum += dValue;
+		}
+		//归一化  
+		for (int i = 0; i<(*pnWidowSize); i++)
+		{
+			(*pdKernel)[i] /= dSum;
+		}
+	}
+
+	//用高斯滤波器平滑
+	//pGray 输入；pResult 输出；
+	void GaussianSmooth(vector<float>&pGray, vector<float>&pResult, double sigma)
+	{
+		int x, y,i;
+		int sz = pGray.size();
+
+		int nWindowSize;//高斯滤波器长度  
+
+		int nLen;//窗口长度  
+
+		double *pdKernel;//一维高斯滤波器  
+
+		double dDotMul;//高斯系数与图像数据的点乘  
+
+		double dWeightSum;//滤波系数总和  
+
+		nWindowSize = 1 + 2 * ceil(3 * sigma);// [-3*sigma,3*sigma] 以内数据，会覆盖绝大部分滤波系数  
+
+		if ((pdKernel = (double *)malloc(nWindowSize * sizeof(double))) == NULL)
+		{
+			printf("malloc memory for pdKernel,failed!!");
+			exit(0);
+		}
+
+		//产生一维高斯数据  
+		CreatGauss(sigma, &pdKernel, &nWindowSize);
+
+		nLen = nWindowSize / 2;
+
+		//x方向滤波  
+		for (int x = 0; x<sz; x++)
+		{
+			dDotMul = 0;
+			dWeightSum = 0;
+			for (int i = (-nLen); i <= nLen; i++)
+			{
+				//判断是否在图像内部  
+				if ((i + x) >= 0 && (i + x)<sz)
+				{
+					dDotMul += (double)(pGray[i + x] * pdKernel[nLen + i]);
+					dWeightSum += pdKernel[nLen + i];
+				}
+			}
+			pResult.push_back(dDotMul / dWeightSum);
+		}
+		free(pdKernel);
+	}
 
 	struct cmp {
 		float a;

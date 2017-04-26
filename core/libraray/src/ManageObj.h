@@ -102,6 +102,10 @@ public:
 	static void OutFilePointObj(vector<Vector3f>* vp,const char * outfilenam);
 	static void OutFilePointObj(vector<float> *a, const char * outfilenam);
 	static void OutFileVectorFloat(vector<float>&a, char * outfilename);
+	static void OutFilePointObj(vector<Vector4f>*vp, const char * outfilenam);
+	static void OutFilePointObj(vector<MyMesh::Point>&mp, const char * outfilename);
+
+	static void OutFilePointAna(set<MyOutBottom>&mp, const char * outfilename);
 	
 
 	//void ObjLine();
