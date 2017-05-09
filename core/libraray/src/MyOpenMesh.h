@@ -22,6 +22,12 @@ typedef Quaternion<float, 0> Quaternionx;
 #define CUTSECTION 22  //将跖趾围到高跟处分成22段 21条截面  第一条切线忽略，从arry 1 开始
 #define CUTSECTION2 15  //将跖趾围到鞋尖点处分成15段 14条截面 arr 总共35条截面   第一条切线忽略，从arry
 #define CUTSECTION3  33  //32个截面
+#define WISTSECTION 8
+#define WISTSECTION2 5
+
+#define GAUSSIONFILTERNUM 3
+
+#define ONEINCHLEN 25.4 //mm
 
 typedef class SurfaceCoe SurFC;
 class MyOpenMesh
@@ -71,10 +77,11 @@ public:
 	static MyMesh::Point MyOpenMesh::MeshTransfer(Vector3f a);
 
 	void FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, MyMesh::VertexHandle *p);
+	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
-	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfaceCoe* met);
-	void ShoeExpansion(vector<SurfaceCoe*> &arrx, SurfaceCoe* met, int ith);
-	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met, vector<MyMesh::Point>&css); //debug
+	void ShoeExpansion(vector<SurfaceCoe *> &arr);
+	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
+	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met, vector<MyMesh::Point>&css,int ith); //debug
 
 	set<struct OutBottom> ShoeBottomLine(vector<MyMesh::Point>&a);
 
@@ -111,9 +118,10 @@ typedef struct MyOpenMesh::OutNoraml MyOutNormal;
 class SurfaceCoe {
 public:
 	SurfaceCoe(MyMesh::VertexHandle *a, MyMesh &b);					//三点确定一个平面
+	SurfaceCoe(MyMesh::Point mid, MyMesh::Point end, MyMesh::VertexHandle c, MyMesh &d);  //三个点确定一个平面
 	SurfaceCoe(Vector3f bf, MyMesh::VertexHandle df, float x, MyMesh &b);			//一条直线加一个点确定一个平面,中间点即为起始点
 	SurfaceCoe(MyMesh::VertexHandle start, MyMesh::Point end, MyMesh &d);	//三点确定一个平面，首先给出两个点，另一个点可变，给除初始位置点和end点
-
+	
 	~SurfaceCoe() {};
 
 	struct CutArry {
@@ -128,17 +136,23 @@ public:
 
 	Vector3f AxieCut(float heelhight);//根据中轴线将鞋楦进行切割分切 (等会儿再切！！！)  给出中轴线向量
 	Vector3f TempVector(); //临时用手点出来点作为中轴线
-	void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
-	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi,int &ith);   //给出沿横切线的分割点；
+	//void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
+	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi);   //给出沿横切线的分割点；
+	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, SurfaceCoe *metc);//腰围增加给出横切面
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
+	SurfaceCoe* FindWaistLine(SurfaceCoe *met);
+
+	int UpOneInch(int ith, MyMesh::Point &a);
+	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigen(vector<Vector4f> *a);
+	bool OutlineEigenf(vector<Vector3f> *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
 	
 	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
-	float AllocateXCoe2();			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
+	float AllocateXCoe();// (SurfaceCoe*met, MyMesh::Point a, MyMesh::Point b);			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
 
 	float DistSurface(MyMesh::Point a) {
 		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
@@ -148,6 +162,10 @@ public:
 	float ReturnExtension() { return mExtension; }
 	float ReturnLength() { return mLength; }
 	Vector3f ReturnCoe() { return mCoeABC; }
+	MyMesh::Point ReturnStartPoint() { return mVertexStart; }
+	int ReturnIth(int i) { return mIth[i]; }
+	void SetMIth(int i) { mIth[2] = i; }
+	MyMesh::VertexHandle ReturnVertexHandle() { return mHandleBegin; }
 private:
 	MyMesh &mesh;
 
@@ -159,10 +177,11 @@ private:
 	MyMesh::VertexHandle mHandleBegin;
 
 	float mX = 1; //需要进行增放的比例系数（>1） 如果不变 保持为1，增大则>1 缩小则<1;
-	int mIth[3] = { 0,0,0 };  //start: 0,  mid  end  metara
+	int mIth[3] = { 0,0,0 };  //start: 0,  mid  end  (metara 保留，不太必要) 第三个用来保存在sfc主横截轮廓的起始点位置
 	float mLen[3] = { 0,0,0 };
 	float mLength = 0;
 	float mExtension = 0;
+	float mExtensionli = 0; //for debug;
 
 	vector<MyOutNormal> mOutline2;
 	void AddOutlinePoint(MyMesh::VertexHandle a, MyMesh::VertexHandle b);//添加outline主体的点
@@ -341,6 +360,7 @@ private:
 		}
 	};
 	//void AxieSurfacePoint(MyMesh::Point a, MyMesh::Point b, MyMesh::Point cs); //计算点在直线上的投影
+
 };
 
 typedef struct SurfaceCoe::CutArry MySurCutArry;

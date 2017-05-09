@@ -119,7 +119,7 @@ void Quaerniont() {
 #define HEELHIGHT 90.06 //mm
 
 string increname(int i) {
-	string head = "cutoutline-"; string suffix = "-ext.obj";
+	string head = "cutoutline-wist"; string suffix = "-ext.obj";
 	char num[3];
 	sprintf(num, "%d", i);
 	string acf(num);
@@ -156,74 +156,110 @@ int main(int argc, char* argv[])
 	
 	vector<Vector3f> outline;
 	MyOpenMesh ios;
+	//vector<float> aba; //output extension for debug
 
 	MyMesh::VertexHandle vertex[3];
 	ios.ReadStlfile("shoestl.stl");
+
+	//vector<MyMesh::Point> bottomline;//底部轮廓线的提取
+	//set<MyOutBottom>  botall;
+	//botall=ios.ShoeBottomLine(bottomline);
+	//ManageObj::OutFilePointObj(bottomline, "bottomoutlien.obj");
+	//ManageObj::OutFilePointAna(botall,"botana.obj");
+
 	ios.FindNearest(p2[0],p2[1],p2[2],vertex);
-	SurfaceCoe sfc(vertex, ios.mesh);
+	SurfaceCoe sfc(vertex, ios.mesh); //中轴横截面
 
-	SurfaceCoe *meta;
-	if (sfc.Init(1)) {
-		/*sfc.OutlineEigen(&outline);// 将原有的outlien进行输出
-		ManageObj::OutFilePointObj(&outline, "outline2.obj");
-		outline.clear();*/
-
-		ios.FindNearest(p[0], p[1], p[2], vertex);		//初始化最近位置
-		meta = sfc.FindMetara(vertex[0], vertex[2]);	//寻找掌围，已经初始化过的掌围
-		//meta->OutlineEigen(&outline);				
-		//ManageObj::OutFilePointObj(&outline, "outline2zhizhi.obj");
-		//outline.clear();
-
-		meta->AllocateXCoe(stepforward);			//按照不同方式配置递增系数
-		//meta->OutlineExpansion();	//outline 扩围度 private函数
-
-		//meta->OutlineEigen(&outline);
-		//ManageObj::OutFilePointObj(&outline, "outline2zhizhi2.obj");
-		//outline.clear();
-	}
-	vector<MySurCutArry> arry;
-	sfc.OutCutOutline(stepforward / meta->ReturnLength(),arry);  //5，计算/给出比率
-	vector<SurfaceCoe*> cutout(arry.size());
-	//Vector3f axi = sfc.AxieCut(HEELHIGHT); //用来得到中轴线后跟点的！
-	Vector3f axi = sfc.TempVector();//直接给出中轴线
-
-	ManageObj arps("3.txt");
-	vector<MyMesh::Point> arp;
-	arps.ReadMeshPoints(arp);
-
-	if (!axi.norm()) {
-		cout << "axi erro zero!" << endl;
+	SurfaceCoe *meta,*wist,*back;
+	if (!sfc.Init(1)) {
+		cout << "sfc init error!" << endl;
 		return 0;
 	}
-	axi.normalize();
-	for (int i = 0; i < arry.size(); i++) {
-		cutout[i] = new SurfaceCoe(axi, arry[i].a, arry[i].x, ios.mesh);
-		if (cutout[i]->Init()) {
-			cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
-			cutout[i]->AllocateXCoe2();//扩散
-			//cutout[i]->OutlineEigen(&outline);
-			//cout << outline.size() << endl; //输出outline
+	sfc.OutlineEigen(&outline);// 将原有的outlien进行输出
+	ManageObj::OutFilePointObj(&outline, "outline.obj");
+	outline.clear();
+
+	ios.FindNearest(p[0], p[1], p[2], vertex);		//初始化最近位置
+	meta = sfc.FindMetara(vertex[0], vertex[2]);	//寻找掌围，已经初始化过的掌围
+
+	wist=sfc.FindWaistLine(meta); //垂直于x轴寻找腰围
+
+	back = sfc.FindWaistLine(wist); //垂直于x轴寻找背围
+	//back->OutlineEigen(&outline);// 将原有的outlien进行输出
+	//ManageObj::OutFilePointObj(&outline, "outlineback-non.obj");
+	//outline.clear();
+
+	//wist->OutlineEigen(&outline);// 将原有的outlien进行输出
+	//ManageObj::OutFilePointObj(&outline, "outlinewist-non.obj");
+	//outline.clear();
+	vector<MySurCutArry> arrywist = sfc.OutCutOutline(3, meta, wist,back);
+	vector<SurfaceCoe*> cutoutwist(arrywist.size());
+	ManageObj wistarps("44.txt");
+	vector<MyMesh::Point> arpwist;
+	wistarps.ReadMeshPoints(arpwist);
+
+	for (int i = 0; i < cutoutwist.size(); i++) {
+		cutoutwist[i] = new SurfaceCoe(arrywist[i].n, arrywist[i].a, arrywist[i].x, ios.mesh);
+		if (cutoutwist[i]->Init()) {
+			cutoutwist[i]->InitTwoPoints(arpwist[i * 2], arpwist[i * 2 + 1]);
+			cutoutwist[i]->AllocateXCoe();// (meta, p2[0], p2[2]);//扩散
+			//cutoutwist[i]->OutlineEigen(&outline);
 			//ManageObj::OutFilePointObj(&outline, increname(i).c_str());
 			//outline.clear();
 		}
 	}
-	ios.ShoeExpansion(cutout,meta);
+	ios.ShoeExpansionWist(cutoutwist);
+	ios.WriteStlfile("wist-shoestlext-3-large.stl", 1);
+
+	/*meta->OutlineEigen(&outline);				
+	ManageObj::OutFilePointObj(&outline, "outlinezhi-non.obj");
+	outline.clear();*/
+
+	meta->AllocateXCoe(stepforward);			//按照不同方式配置递增系数
+
+	//meta->OutlineEigen(&outline);
+	//ManageObj::OutFilePointObj(&outline, "outlinezhi-fs-ext.obj");
+	//ManageObj::OutFilePointObj(outline, "outlinezhi-fs-ext.obj");
+	//outline.clear();
+
+	//Vector3f axi = sfc.TempVector();//直接给出中轴线
+
+	vector<MySurCutArry> arry = sfc.OutCutOutline(stepforward, meta, sfc.TempVector());
+	vector<SurfaceCoe*> cutout(arry.size());
+
+	ManageObj arps("33.txt");
+	vector<MyMesh::Point> arp;
+	arps.ReadMeshPoints(arp);
+
+	for (int i = 0; i < arry.size(); i++) {
+		cutout[i] = new SurfaceCoe(arry[i].n, arry[i].a, arry[i].x, ios.mesh);
+		if (cutout[i]->Init()) {
+			cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
+			//cutout[i]->OutlineEigen(&outline);
+			//ManageObj::OutFilePointObj(&outline, increname(i).c_str());
+			cutout[i]->AllocateXCoe();// (meta, p2[0], p2[2]);//扩散
+
+			cutout[i]->OutlineEigen(&outline);
+			//cout << "ith:" << i << " " << outline.size() <<" " << endl;; //输出outline
+			ManageObj::OutFilePointObj(&outline, increname(i).c_str());
+			//ManageObj::OutFilePointObj(outline, increname(i).c_str());
+			outline.clear();
+			//aba.push_back(cutout[i]->ReturnExtension());
+		}
+	}
+	/*ManageObj arpst("mt.txt");
+	vector<MyMesh::Point> arpp;
+	arpst.ReadMeshPoints(arpp);*/
 	
-	ios.WriteStlfile("shoestlext-large.stl",1);
+	//ios.ShoeExpansion(cutout, meta, arpp,ith); //??debug error!
+	ios.ShoeExpansion(cutout);
+	ios.WriteStlfile("new-shoestlext-large3.stl", 1);
 
 	//释放new所创建分配的内存
 	for (int i = 0; i < arry.size(); i++) { 
 		delete cutout[i]; 
 	}
-	
-	/*vector<Vector3f> outline;
-	MyOpenMesh ios;
-	ios.ReadStlfile("shoestl.stl");
 
-	ios.MoveVertex(3);
-	ios.WriteStlfile("movelen3.stl",1);*/
-	//ios.BottomVertex(&outline);
-	//ManageObj::OutFilePointObj(&outline, "bottomshoedown.obj");
 	system("pause");
 	return 0;
 }
