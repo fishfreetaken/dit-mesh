@@ -22,12 +22,49 @@ typedef Quaternion<float, 0> Quaternionx;
 #define CUTSECTION 22  //将跖趾围到高跟处分成22段 21条截面  第一条切线忽略，从arry 1 开始
 #define CUTSECTION2 15  //将跖趾围到鞋尖点处分成15段 14条截面 arr 总共35条截面   第一条切线忽略，从arry
 #define CUTSECTION3  33  //32个截面
-#define WISTSECTION 8
-#define WISTSECTION2 5
+#define WISTSECTION 16
+#define WISTSECTION2 12 //6
 
 #define GAUSSIONFILTERNUM 3
 
 #define ONEINCHLEN 25.4 //mm
+
+//#define SWITCHOPEN 1	//使用距离作为系数
+//#define SWITCHOPEN2 1 //指定特定的系数
+//#define OUTFILEBACK 1
+#define STTWISTX 1
+
+#define ITERATIONCISHU 9
+
+#define TOPOFFSET 7.5
+
+class SurfacePure {
+public:
+	SurfacePure(Vector3f a, Vector3f b, Vector3f c) :
+		start(a),
+		mid(b),
+		end(c)
+	{
+		Vector3f ab = a - b;
+		ab = (a - c).cross(ab);
+		mCoeABC = Vector3f(ab[0], ab[1], ab[2]);
+
+		float d = ab.dot(Vector3f(0, 0, 0) - a) / mCoeABC.norm();
+		mCoeABC.normalize();
+		mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+	}
+
+	float DistSurface(MyMesh::Point a) {
+		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
+	};
+private:
+	Vector4f mCoe;
+	Vector3f mCoeABC;
+
+	Vector3f start;
+	Vector3f mid;
+	Vector3f end;
+};
 
 typedef class SurfaceCoe SurFC;
 class MyOpenMesh
@@ -44,23 +81,25 @@ public:
 		float x=0;  //扩增系数
 		float d=0;	//记录起始点到该点的距离
 		MyMesh::Point f=MyMesh::Point(0,0,0); //记录相对于原来的递增量
+		MyMesh::Point m= MyMesh::Point(0, 0, 0); //记录移动后坐标
 		//MyMesh::Point pro = MyMesh::Point(0, 0, 0); //记录增长的比率
 		//float k = 0;//扩散增量
 	};
 
 	struct OutBottom {
 		MyMesh::VertexHandle n;
-		MyMesh::Point a;
+
+		//MyMesh::Point a;
 		MyMesh::Normal s;
 		//int i=0;
-		float x = 0;
+		float x = 1;
 		//bool operator < (const struct OutBottom &m)const {
 		//	return x > m.x;
 		//	//return i < a.i;
 		//}
 		bool operator < (const struct OutBottom &m)const {
-			return x > m.x;
-			//return i < a.i;
+			//return x > m.x;
+			return n.idx()< m.n.idx();
 		}
 	};
 	
@@ -73,6 +112,8 @@ public:
 	void ReleaseVertexNormals();
 	void BottomVertex(vector<Vector3f>*a); //提取鞋楦底部点
 
+	void BotIteration(set<struct OutBottom>&arr,int idx, int iver); //private
+
 	static Vector3f MyOpenMesh::EigenTransfer(MyMesh::Point a);
 	static MyMesh::Point MyOpenMesh::MeshTransfer(Vector3f a);
 
@@ -80,10 +121,14 @@ public:
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
 	void ShoeExpansion(vector<SurfaceCoe *> &arr);
+	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfacePure *met);
 	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
-	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, SurfaceCoe* met, vector<MyMesh::Point>&css,int ith); //debug
+	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css); //debug
+	
+	void MyOpenMesh::ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
 
-	set<struct OutBottom> ShoeBottomLine(vector<MyMesh::Point>&a);
+
+	vector<struct OutBottom> ShoeBottomLine(vector<MyMesh::Point>&a);
 
 	int TotalVertex() {
 		return mesh.n_vertices();
@@ -139,9 +184,11 @@ public:
 	//void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
 	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi);   //给出沿横切线的分割点；
 	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, SurfaceCoe *metc);//腰围增加给出横切面
+	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, SurfaceCoe &sfc, MyOpenMesh &ios);
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
 	SurfaceCoe* FindWaistLine(SurfaceCoe *met);
+	float FindAddLenth(SurfaceCoe *met,float ext);
 
 	int UpOneInch(int ith, MyMesh::Point &a);
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
@@ -153,6 +200,9 @@ public:
 	
 	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
 	float AllocateXCoe();// (SurfaceCoe*met, MyMesh::Point a, MyMesh::Point b);			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
+	float AllocateXCoe(SurfacePure*met);  //用来处理顶部放量
+	float TopSlide(SurfacePure*met);//用来进行顶点的平滑处理
+
 
 	float DistSurface(MyMesh::Point a) {
 		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
@@ -163,9 +213,11 @@ public:
 	float ReturnLength() { return mLength; }
 	Vector3f ReturnCoe() { return mCoeABC; }
 	MyMesh::Point ReturnStartPoint() { return mVertexStart; }
+
 	int ReturnIth(int i) { return mIth[i]; }
 	void SetMIth(int i) { mIth[2] = i; }
 	MyMesh::VertexHandle ReturnVertexHandle() { return mHandleBegin; }
+	
 private:
 	MyMesh &mesh;
 

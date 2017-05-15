@@ -16,7 +16,7 @@ ManageObj::ManageObj(char * name, vector<Vector3f>*p) :
 ManageObj::ManageObj(char * name) :
 	mrfilename(name)
 {
-	OpenObj();
+	
 }
 
 
@@ -134,7 +134,11 @@ Vector3f ManageObj::StringFloat2(string s) {
 	return Vector3f(d[0], d[1], d[2]);
 }
 
-void ManageObj::ReadMeshPoints(vector<MyMesh::Point>& ab) {
+int ManageObj::ReadMeshPoints(vector<MyMesh::Point>& ab) {
+	int io = OpenObj();
+	if (io) {
+		return 0;
+	}
 	stringstream ss(mbuffer);
 	string s;
 	ios::sync_with_stdio(false);
@@ -144,6 +148,7 @@ void ManageObj::ReadMeshPoints(vector<MyMesh::Point>& ab) {
 	}
 	ios::sync_with_stdio(true);
 	FreeBuf();
+	return 1;
 }
 MyMesh::Point ManageObj::StringFloat3(string s) {
 	float  d[3];
@@ -213,6 +218,15 @@ void ManageObj::OutFilePointObj(vector<Vector3f>* vp, const char * outfilenam) {
 	fclose(fp);
 }
 
+void ManageObj::OutFilePointObj(vector<Vector3f>&vp, const char * outfilenam) {
+	FILE *fp;
+	fopen_s(&fp, outfilenam, "w");
+	for (unsigned int i = 0; i < vp.size(); i++) {
+		fprintf(fp, "%f %f %f\n", vp[i][0], vp[i][1], vp[i][2]);
+	}
+	fclose(fp);
+}
+
 void ManageObj::OutFilePointObj(vector<MyMesh::Point>&vp, const char * outfilename) {
 	FILE *fp;
 	fopen_s(&fp, outfilename, "w");
@@ -225,6 +239,7 @@ void ManageObj::OutFilePointObj(vector<MyMesh::Point>&vp, const char * outfilena
 	fprintf(fp, "# end of file\n");
 	fclose(fp);
 }
+
 class classify {
 public:
 	classify(float a, float b) { mStart = a; mEnd = b; };
@@ -237,48 +252,51 @@ private :
 	float mEnd;
 	int sum=0;
 };
-void ManageObj::OutFilePointAna(set<MyOutBottom>&vp, const char * outfilename) {  //for analyse;
+void ManageObj::OutFilePointAna(vector<MyOutBottom>&vp, const char * outfilename) {  //for analyse;
 	FILE *fp;
 	fopen_s(&fp, outfilename, "w");
-	fprintf(fp, "# Studio\n");
-	fprintf(fp, "g Point_Model_1\n");
-	cout << "My bootm file write" << endl;
-	set<MyOutBottom>::iterator it(vp.begin());
-	float big = ((int)(it->x/10)+1)*10;
 
-	vector<classify*>mmt;
+	cout << "My bottom file write" << endl;
 
-	while (big > 10) {
-		mmt.push_back(new classify(big-10, big));
-		big -= 10;
-	}
-	while (big > 0) {
-		mmt.push_back(new classify(big - 1, big));
-		big--;
-	}
+	/*set<MyOutBottom>::iterator it(vp.begin());
+	float big = ((int)(it->x/10)+1)*10;*/
+
+	//vector<classify*>mmt;
+
+	//while (big > 10) {
+	//	mmt.push_back(new classify(big-10, big));
+	//	big -= 10;
+	//}
+	//while (big > 0) {
+	//	mmt.push_back(new classify(big - 1, big));
+	//	big--;
+	//}
+	///*for (auto i : vp) {
+	//	fprintf(fp, "v %f %f %f norm: %f\n", i.a[0], i.a[1], i.a[2], i.x);
+	//	for (int j = 0; j < mmt.size(); j++) {
+	//		mmt[j]->Judge(i.x);
+	//	}
+	//}*/
+	//for (auto i : mmt) {
+	//	fprintf(fp, "total :%f ~~~ %f : %d  %f%\n",i->Rsfa(),i->Rsfb(),i->Rs(),(i->Rs()*100/vp.size()));
+	//}
+	//fprintf(fp, "# end of file\n");
 	for (auto i : vp) {
-		fprintf(fp, "v %f %f %f norm: %f\n", i.a[0], i.a[1], i.a[2], i.x);
-		for (int j = 0; j < mmt.size(); j++) {
-			mmt[j]->Judge(i.x);
-		}
+		fprintf(fp, "%f %f %f   %f\n",i.s[0],i.s[1],i.s[2],i.s.norm());
 	}
-	for (auto i : mmt) {
-		fprintf(fp, "total :%f ~~~ %f : %d  %f%\n",i->Rsfa(),i->Rsfb(),i->Rs(),(i->Rs()*100/vp.size()));
-	}
-	fprintf(fp, "# end of file\n");
 	fclose(fp);
 }
 
 void ManageObj::OutFilePointObj(vector<Vector4f>* vp, const char * outfilenam) {
 	FILE *fp;
 	fopen_s(&fp, outfilenam, "w");
-	fprintf(fp, "# Studio\n");
-	fprintf(fp, "g Point_Model_1\n");
+	//fprintf(fp, "# Studio\n");
+	//fprintf(fp, "g Point_Model_1\n");
 	for (unsigned int i = 0; i < (*vp).size(); i++) {
-		fprintf(fp, "v %f %f %f x: %f\n", (*vp)[i][0], (*vp)[i][1], (*vp)[i][2], (*vp)[i][3]);
-		fprintf(fp, "p %d\n", (i + 1));
+		fprintf(fp, "%f %f %f %f\n", (*vp)[i][0], (*vp)[i][1], (*vp)[i][2], (*vp)[i][3]);
+		//fprintf(fp, "p %d\n", (i + 1));
 	}
-	fprintf(fp, "# end of file\n");
+	//fprintf(fp, "# end of file\n");
 	fclose(fp);
 }
 
@@ -288,6 +306,6 @@ void ManageObj::OutFilePointObj(vector<float> *vp, const char * outfilenam) {
 	for (unsigned int i = 0; i < (*vp).size(); i++) {
 		fprintf(fp,"%d %f\n", i, (*vp)[i]);
 	}
-	fprintf(fp, "# end of file\n");
+	//fprintf(fp, "# end of file\n");
 	fclose(fp);
 }
