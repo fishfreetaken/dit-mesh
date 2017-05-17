@@ -152,21 +152,20 @@ void MyOpenMesh::BotIteration(set<MyOutBottom>&arr, int idx ,int iver) {
 	return;
 }
 
-vector<MyOutBottom> MyOpenMesh::ShoeBottomLine(vector<MyMesh::Point>&a) {
+void MyOpenMesh::ShoeBottomLine(vector<MyOutBottom>&arrx) {
 	cout << "Out the Bottom Line" << endl;
-	vector<MyOutBottom>arrx;
+	//vector<MyOutBottom>arrx;
 	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
 	{
-		MyMesh::Normal es(0, 0, 0),dif(0,0,0);
-		set<MyOutBottom>arr;
+		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
+		
+#ifdef SHOEBOTTOMLL
+		set<MyOutBottom>arr; //使用vector整体提升的很高很高，之间差别特别明显
+#else
+		vector<MyOutBottom>arr; //使用vector整体提升的很高很高，之间差别特别明显
+#endif // DEBUG
+
 		MyOutBottom git;
-
-		//cout << v_it->idx() << endl;
-		//BotIteration(arr, v_it->idx(),0);
-
-		/*git.a = mesh.point(*v_it);
-		git.x = 1;
-		xxt.push_back(git);*/
 
 		for (MyMesh::VertexVertexIter vv_it = mesh.vv_iter(*v_it); vv_it.is_valid(); ++vv_it)
 		{
@@ -176,51 +175,153 @@ vector<MyOutBottom> MyOpenMesh::ShoeBottomLine(vector<MyMesh::Point>&a) {
 				{
 					for (MyMesh::VertexVertexIter vv_it3 = mesh.vv_iter(mesh.vertex_handle(vv_it2->idx())); vv_it3.is_valid(); ++vv_it3)
 					{
-						git.s = mesh.normal(*vv_it2);
+						for (MyMesh::VertexVertexIter vv_it4 = mesh.vv_iter(mesh.vertex_handle(vv_it3->idx())); vv_it4.is_valid(); ++vv_it4)
+						{
+							git.s = mesh.normal(*vv_it4);
+							git.n = mesh.vertex_handle(vv_it4->idx());
+#ifdef SHOEBOTTOMLL
+							arr.insert(git);
+#else
+							arr.push_back(git);
+#endif // DEBUG
+							
+						}
+						git.s = mesh.normal(*vv_it3);
 						git.n = mesh.vertex_handle(vv_it3->idx());
-						//git.x = 0.1;
+#ifdef SHOEBOTTOMLL
 						arr.insert(git);
+#else
+						arr.push_back(git);
+#endif // DEBUG
 					}
 					git.s = mesh.normal(*vv_it2);
 					git.n = mesh.vertex_handle(vv_it2->idx());
-					//git.x = 0.2;
+#ifdef SHOEBOTTOMLL
 					arr.insert(git);
+#else
+					arr.push_back(git);
+#endif // DEBUG
 				}
 				git.s = mesh.normal(*vv_it1);
 				git.n = mesh.vertex_handle(vv_it1->idx());
-				//git.x = 0.6;
+#ifdef SHOEBOTTOMLL
 				arr.insert(git);
+#else
+				arr.push_back(git);
+#endif // DEBUG
 			}
 			git.s = mesh.normal(*vv_it);
 			git.n = mesh.vertex_handle(vv_it->idx());
-			//git.x = 0.8;
+#ifdef SHOEBOTTOMLL
 			arr.insert(git);
+#else
+			arr.push_back(git);
+#endif // DEBUG
 		}
-		
-		for (auto i:arr) {
+
+		for (auto i : arr) {
 			es += i.s;
 		}
 		es = es / arr.size();
-		for (auto i:arr)
+		for (auto i : arr)
 		{
-			dif[0]+= ((i.s[0] - es[0])*i.x) * ((i.s[0] - es[0])*i.x);
-			dif[1]+= ((i.s[1] - es[1])*i.x) * ((i.s[1] - es[1])*i.x);
-			dif[2]+= ((i.s[2] - es[2])*i.x) * ((i.s[2] - es[2])*i.x);
+			dif[0] += ((i.s[0] - es[0])*i.x) * ((i.s[0] - es[0])*i.x);
+			dif[1] += ((i.s[1] - es[1])*i.x) * ((i.s[1] - es[1])*i.x);
+			dif[2] += ((i.s[2] - es[2])*i.x) * ((i.s[2] - es[2])*i.x);
 		}
 		dif[0] = sqrt(dif[0]);
 		dif[1] = sqrt(dif[1]);
 		dif[2] = sqrt(dif[2]);
-		//xxt.clear();
 
 		MyOutBottom stt;
 		stt.n = mesh.vertex_handle(v_it->idx());
 		stt.s = dif;
-		/*if ((stt.x >=4.79)&&(stt.x<4.8)) {
-			a.push_back(mesh.point(*v_it));
-		}*/
+		stt.a = mesh.point(*v_it);
 		arrx.push_back(stt);
 	}
-	return arrx;
+}
+
+void MyOpenMesh::FindFloorContour(vector<MyMesh::Point> &out) {
+	vector<int> floorContour;
+	MyMesh::VertexIter  v_it, v_end(mesh.vertices_end());
+	MyMesh::VertexIter	v_it_s[3];
+	MyMesh::Point curPoint;
+	double minX, maxX, minY, maxY;
+	cout << "Finding Floor Contour..." << endl;
+	v_it = mesh.vertices_begin();
+	minX = maxX = mesh.point(*v_it)[0];
+	minY = maxY = mesh.point(*v_it)[1];
+	for (; v_it != v_end; v_it++)
+	{
+		curPoint = mesh.point(*v_it);
+		if (curPoint[0] > maxX)
+			maxX = curPoint[0];
+		if (curPoint[0] < minX)
+			minX = curPoint[0];
+		if (curPoint[1] > maxY)
+			maxY = curPoint[1];
+		if (curPoint[1] < minY)
+			minY = curPoint[1];
+		//mesh.set_point(*v_it, curPoint);
+		//v_it->idx();
+	}
+	double xSampleS = 0.5;//0.05;
+	int xSampleL = int((maxX - minX) / xSampleS + 1);
+	vector<vector<int>> xSamplePtV(xSampleL);
+	v_it = mesh.vertices_begin();
+	for (; v_it != v_end; v_it++)
+	{
+		curPoint = mesh.point(*v_it);
+		int xIndex = int((curPoint[0] - minX) / xSampleS);
+		xSamplePtV[xIndex].push_back(v_it->idx());
+	}
+	floorContour.clear();
+	for (int i = 0; i < xSampleL; i++)
+	{
+		if (xSamplePtV[i].size() == 0)
+			continue;
+		double minZ = mesh.point(mesh.vertex_handle(xSamplePtV[i][0]))[2];
+		for (unsigned int j = 1; j < xSamplePtV[i].size(); j++)
+		{
+			curPoint = mesh.point(mesh.vertex_handle(xSamplePtV[i][j]));
+			if (curPoint[2] < minZ)
+				minZ = curPoint[2];
+		}
+		minY = maxY = mesh.point(mesh.vertex_handle(xSamplePtV[i][0]))[1];
+		int left = 0;
+		int right = 0;
+		for (unsigned int j = 0; j < xSamplePtV[i].size(); j++)
+		{
+			curPoint = mesh.point(mesh.vertex_handle(xSamplePtV[i][j]));
+			//floorContour.push_back(curPoint);
+
+			if ((curPoint[2] - minZ) > 5)
+				continue;
+			if (curPoint[1] < minY)
+			{
+				minY = curPoint[1];
+				left = j;
+			}
+			if (curPoint[1] > maxY)
+			{
+				maxY = curPoint[1];
+				right = j;
+			}
+		}
+		floorContour.push_back(xSamplePtV[i][left]);
+		floorContour.push_back(xSamplePtV[i][right]);
+	}
+	//vector<cv::Point2d> cloudMat;
+	//vector<int> edgeL;
+	/*for (unsigned int i = 0; i < floorContour.size(); i++)
+	{
+		curPoint = mesh.point(mesh.vertex_handle(floorContour[i]));
+		cloudMat.push_back(cv::Point2d(curPoint[0], curPoint[1]));
+	}*/
+
+	for (auto i : floorContour) {
+		out.push_back(mesh.point(mesh.vertex_handle(i)));
+	}
 }
 
 vector<MyMesh::Point> MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css) {
@@ -822,7 +923,6 @@ float SurfaceCoe::AllocateXCoe(SurfacePure*met) {//(SurfaceCoe*met,MyMesh::Point
 	return OutlineExpansion();
 }
 
-
 //float SurfaceCoe::OutlineExpansion() {  //(float tar)//一般如果分布之间差异过大，导致收敛摆动过大，收敛效果并不好
 //	vector<MyOutNormal> bso = mOutline2;
 //	float s = 0, li = mExtension*10, pp = 0;
@@ -878,6 +978,399 @@ float SurfaceCoe::OutlineExpansion() {  //(float tar) //这个是取半值
 	mExtensionli = li;
 	return li;
 }
+class CircleIndex {
+public:
+	CircleIndex(MyMesh::Normal a,int b) :
+	mN(a),
+	Ith(b)
+	{}
+	MyMesh::Normal RtNormal() { return mN; }
+	int RtIth() { return Ith; }
+
+	CircleIndex *next;
+	CircleIndex *up;
+private:
+	MyMesh::Normal mN;
+	int Ith;
+};
+void SurfaceCoe::InitMidEndPoint(vector<MyMesh::Point>&fw, float fen,vector<MyMesh::Point>&fm) {
+	int window = 7;
+	CircleIndex *end=NULL,*start=NULL, *init2 = NULL;
+	CircleIndex *init = new CircleIndex(mOutline2[0].n, 0);
+	start = init;
+	for (int i = 1; i < mOutline2.size(); i++) {
+		end =new CircleIndex(mOutline2[i].n, i);
+		init->next = end;
+		end->up = init;
+		init = end;
+	}
+	start->up = end;
+	end->next = start;
+
+	set<MyBotOutLine> sum;
+	if (end == NULL) {
+		cout << "End is NULL" << endl;
+		return;
+	}
+	while (start != end) {
+		init = start;
+		init2 = start->up;
+		vector<MyMesh::Normal>sm;
+		for (int i = 0; i < window; i++) {
+			sm.push_back(init->RtNormal());
+			init = init->next;
+			sm.push_back(init2->RtNormal());
+			init2 = init2->up;
+		}
+		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
+		for (auto i : sm) {
+			es += i;
+		}
+		es = es /(window*2);
+		for (auto i : sm) {
+			dif[0] += ((i[0] - es[0])) * ((i[0] - es[0]));
+			dif[1] += ((i[1] - es[1])) * ((i[1] - es[1]));
+			dif[2] += ((i[2] - es[2])) * ((i[2] - es[2]));
+		}
+		dif[0] = sqrt(dif[0]);
+		dif[1] = sqrt(dif[1]);
+		dif[2] = sqrt(dif[2]);
+		MyBotOutLine git;
+		git.s = dif;
+		git.x = dif.norm();
+		git.ith = start->RtIth();
+		sum.insert(git);
+		start = start->next;
+	}
+	
+	//set<MyBotOutLine>::iterator it(sum.begin());
+	MyMesh::Point bua, bub;
+	float lin = 0;
+	bool into = 0;
+	for (auto i : sum) {
+		/*if ((i.ith < (mOutline2.size() / 4)) || (i.ith >(mOutline2.size() * 3 / 4))) {
+			fm.push_back(mOutline2[i.ith].a);
+			continue;
+		}*/
+		if (mOutline2[i.ith].a[2] < fen) {
+			lin = mOutline2[i.ith].a[1];
+			if (lin > 0) {
+				bua = mOutline2[i.ith].a;
+			}
+			else {
+				bub = mOutline2[i.ith].a;
+			}
+			break;
+		}
+		else {
+			fm.push_back(mOutline2[i.ith].a);
+		}
+	}
+
+	for (auto i : sum) {
+		/*if ((i.ith < (mOutline2.size() / 4)) || (i.ith >(mOutline2.size() * 3 / 4))) {
+			fm.push_back(mOutline2[i.ith].a);
+			continue;
+		}*/
+		if (mOutline2[i.ith].a[2] < fen) {
+			if ((mOutline2[i.ith].a[1] * lin) < 0) {
+				if (lin > 0) {
+					bub = mOutline2[i.ith].a;
+				}
+				else {
+					bua = mOutline2[i.ith].a;
+				}
+				break;
+			}
+		}
+		else {
+			if (!into) {
+				if (fm.size()) {
+					fm.push_back(mOutline2[i.ith].a);
+					into = 1;
+				}
+			}
+		}
+	}
+
+	fw.push_back(bua);
+	fw.push_back(bub);
+
+	/*释放内存*/
+	for (int i = 0; i < mOutline2.size(); i++) {
+		delete start->up;
+		start = start->next;
+	}
+}
+
+void SurfaceCoe::InitMidEndPoint(vector<MyMesh::Point>&fw) {
+	int window = 7;
+	float upstep = 7;//默认
+
+	MyMesh::Point bua(0,0,0), bub(0,0,0);
+	int bot = 0; float lin = mOutline2[0].a[2];
+	float topv= mOutline2[0].a[2];
+	for (int i = 1; i < mOutline2.size(); i++) {
+		if (lin > mOutline2[i].a[2]) {
+			lin = mOutline2[i].a[2];
+			bot = i;
+		}
+		if (topv < mOutline2[i].a[2]) {
+			topv= mOutline2[i].a[2];
+		}
+	}//默认情况下bot应该处于500左右范围内的值(该值远远大于window窗口滤波范围)
+	upstep = abs((topv - lin) / 7);
+	//cout << upstep << endl;
+	set<MyBotOutLine> sum1,sum2;//for debug
+	lin = 0; int ith=0;
+	for (int i = bot; i < mOutline2.size(); i++) {
+		if (abs(mOutline2[i].a[2] - mOutline2[bot].a[2]) > upstep) {
+			break;
+		}
+		vector<MyMesh::Normal>sm;
+		sm.push_back(mOutline2[i].n);
+		for (int j = 1; j < window; j++) {
+			sm.push_back(mOutline2[i - j].n);
+			sm.push_back(mOutline2[i + j].n);
+		}
+		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
+		for (auto s : sm) {
+			es += s;
+		}
+		es = es / (window * 2);
+		for (auto s : sm) {
+			dif[0] += ((s[0] - es[0])) * ((s[0] - es[0]));
+			dif[1] += ((s[1] - es[1])) * ((s[1] - es[1]));
+			dif[2] += ((s[2] - es[2])) * ((s[2] - es[2]));
+		}
+		dif[0] = sqrt(dif[0]);
+		dif[1] = sqrt(dif[1]);
+		dif[2] = sqrt(dif[2]);
+		MyBotOutLine git;
+		git.s = dif;
+		git.x = dif.norm();
+		git.ith = i;
+		sum1.insert(git);
+		if (lin < dif.norm()) {
+			lin = dif.norm();
+			ith = i;
+		}
+	}
+	if (!ith) {
+		cout << "ith is zero!" << endl;
+		return;
+	}
+	if (mOutline2[ith].a[1]>0) {
+		bua = mOutline2[ith].a;
+	}
+	else {
+		bub = mOutline2[ith].a;
+	}//step one over!
+
+	lin = 0; ith = 0;
+	for (int i = bot; i >=0; i--) {
+		if (abs(mOutline2[i].a[2] - mOutline2[bot].a[2]) > upstep) {
+			break;
+		}
+		vector<MyMesh::Normal>sm;
+		sm.push_back(mOutline2[i].n);
+		for (int j = 1; j < window; j++) {
+			sm.push_back(mOutline2[i - j].n);
+			sm.push_back(mOutline2[i + j].n);
+		}
+		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
+		for (auto i : sm) {
+			es += i;
+		}
+		es = es / (window * 2);
+		for (auto i : sm) {
+			dif[0] += ((i[0] - es[0])) * ((i[0] - es[0]));
+			dif[1] += ((i[1] - es[1])) * ((i[1] - es[1]));
+			dif[2] += ((i[2] - es[2])) * ((i[2] - es[2]));
+		}
+		dif[0] = sqrt(dif[0]);
+		dif[1] = sqrt(dif[1]);
+		dif[2] = sqrt(dif[2]);
+		MyBotOutLine git;
+		git.s = dif;
+		git.x = dif.norm();
+		git.ith = i;
+		sum2.insert(git);
+		if (lin < dif.norm()) {
+			lin = dif.norm();
+			ith = i;
+		}
+	}
+	if (!ith) {
+		cout << "ith is zero!" << endl;
+		return;
+	}
+	if (mOutline2[ith].a[1]>0) {
+		bua = mOutline2[ith].a;
+	}
+	else {
+		bub = mOutline2[ith].a;
+	}//step two is on running;
+	if (bua.norm()) {
+		fw.push_back(bua);
+	}
+	else {
+		fw.push_back(mOutline2[bot-mOutline2.size()/8].a);
+	}
+	if (bub.norm()) {
+		fw.push_back(bub);
+	}
+	else {
+		for (int i = bot+1; i < mOutline2.size(); i++) {
+			if (abs(mOutline2[bot].a[2] - mOutline2[i].a[2]) > 1) {
+				ith = i;
+				break;
+			}
+		}
+		fw.push_back(mOutline2[ith].a);
+	}
+}
+
+void SurfaceCoe::InitMidTopPoint(vector<MyMesh::Point>&fw) {
+	int window = 7;
+	float upstep = 7;//默认
+
+	MyMesh::Point bua(0,0,0), bub(0,0,0);
+	float lin = mOutline2[0].a[2];
+	float topv= mOutline2[0].a[2];
+	for (int i = 1; i < mOutline2.size(); i++) {
+		if (lin < mOutline2[i].a[2]) {
+			lin = mOutline2[i].a[2];
+			//bot = i;
+		}
+		if (topv > mOutline2[i].a[2]) {
+			topv= mOutline2[i].a[2];
+		}
+	}//默认情况下bot应该处于500左右范围内的值(该值远远大于window窗口滤波范围)
+	upstep = abs((topv - lin) / 8);
+	cout << upstep << endl;
+
+	set<MyBotOutLine> sum1, sum2;//for debug
+	vector<MyBotOutLine>tf;
+	for (int i = mOutline2.size() * 2 / 3; i < mOutline2.size(); i++) {
+		MyBotOutLine gt;
+		gt.ith = i;
+		gt.s = mOutline2[i].n;
+		gt.a = mOutline2[i].a;
+		tf.push_back(gt);
+	}
+	for (int i = 0; i < mOutline2.size()/3; i++) {
+		MyBotOutLine gt;
+		gt.ith = i;
+		gt.s = mOutline2[i].n;
+		gt.a = mOutline2[i].a;
+		tf.push_back(gt);
+	}
+	int bot = 0; lin = tf[0].a[2];
+	for (int i = 0; i < tf.size(); i++) {
+		if (lin < tf[i].a[2]) {
+			lin = tf[i].a[2];
+			bot = i;
+		}
+	}
+	
+	lin = 0; int ith=0;
+	for (int i = bot; i < tf.size(); i++) {
+		if (abs(tf[i].a[2] - tf[bot].a[2]) > upstep) {
+			break;
+		}
+		vector<MyMesh::Normal>sm;
+		sm.push_back(mOutline2[i].n);
+		for (int j = 1; j < window; j++) {
+			sm.push_back(tf[i - j].s);
+			sm.push_back(tf[i + j].s);
+		}
+		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
+		for (auto s : sm) {
+			es += s;
+		}
+		es = es / (window * 2);
+		for (auto s : sm) {
+			dif[0] += ((s[0] - es[0])) * ((s[0] - es[0]));
+			dif[1] += ((s[1] - es[1])) * ((s[1] - es[1]));
+			dif[2] += ((s[2] - es[2])) * ((s[2] - es[2]));
+		}
+		dif[0] = sqrt(dif[0]);
+		dif[1] = sqrt(dif[1]);
+		dif[2] = sqrt(dif[2]);
+		MyBotOutLine git;
+		git.s = dif;
+		git.x = dif.norm();
+		git.ith = i;
+		sum1.insert(git);
+		if (lin < dif.norm()) {
+			lin = dif.norm();
+			ith = i;
+		}
+	}
+	if (!ith) {
+		cout << "ith is zero!" << endl;
+		return;
+	}
+	if (tf[ith].a[1]>0) {
+		bua = tf[ith].a;
+	}
+	else {
+		bub = tf[ith].a;
+	}//step one over!
+
+	lin = 0; ith = 0;
+	for (int i = bot; i >=0; i--) {
+		if (abs(tf[i].a[2] - tf[bot].a[2]) > upstep) {
+			break;
+		}
+		vector<MyMesh::Normal>sm;
+		sm.push_back(mOutline2[i].n);
+		for (int j = 1; j < window; j++) {
+			sm.push_back(tf[i - j].s);
+			sm.push_back(tf[i + j].s);
+		}
+		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
+		for (auto i : sm) {
+			es += i;
+		}
+		es = es / (window * 2);
+		for (auto i : sm) {
+			dif[0] += ((i[0] - es[0])) * ((i[0] - es[0]));
+			dif[1] += ((i[1] - es[1])) * ((i[1] - es[1]));
+			dif[2] += ((i[2] - es[2])) * ((i[2] - es[2]));
+		}
+		dif[0] = sqrt(dif[0]);
+		dif[1] = sqrt(dif[1]);
+		dif[2] = sqrt(dif[2]);
+		MyBotOutLine git;
+		git.s = dif;
+		git.x = dif.norm();
+		git.ith = i;
+		sum2.insert(git);
+		if (lin < dif.norm()) {
+			lin = dif.norm();
+			ith = i;
+		}
+	}
+	if (!ith) {
+		cout << "ith is zero!" << endl;
+		return;
+	}
+	if (tf[ith].a[1]>0) {
+		bua = tf[ith].a;
+	}
+	else {
+		bub = tf[ith].a;
+	}//step two is on running;
+	if (bua.norm()) {
+		fw.push_back(bua);
+	}
+	if (bub.norm()) {
+		fw.push_back(bub);
+	}
+}
+
 
 bool SurfaceCoe::OutlineEigen(vector<Vector3f> *a) {
 	if (!mOutline2.size()) {
@@ -885,18 +1378,21 @@ bool SurfaceCoe::OutlineEigen(vector<Vector3f> *a) {
 		return false;
 	}
 	for (auto i : mOutline2) {
-		a->push_back(Vector3f(i.m[0], i.m[1], i.m[2]));
+		a->push_back(Vector3f(i.a[0], i.a[1], i.a[2]));
 	}
 	return true;
 }
-bool SurfaceCoe::OutlineEigenf(vector<Vector3f> *a) {
+bool SurfaceCoe::OutlineEigenf(const char  *filename) {
 	if (!mOutline2.size()) {
 		cout << "outline no points" << endl;
 		return false;
 	}
-	for (auto i : mOutline2) {
-		a->push_back(Vector3f(i.f[0], i.f[1], i.f[2]));
+	FILE *fp;
+	fopen_s(&fp, filename, "w");
+	for (unsigned int i = 0; i < mOutline2.size(); i++) {
+		fprintf(fp, "%d %f,%f,%f  %f,%f,%f\n",i,mOutline2[i].n[0], mOutline2[i].n[1],mOutline2[i].n[2], mOutline2[i].a[0],mOutline2[i].a[1],mOutline2[i].a[2]);
 	}
+	fclose(fp);
 	return true;
 }
 

@@ -38,6 +38,8 @@ typedef Quaternion<float, 0> Quaternionx;
 
 #define TOPOFFSET 7.5
 
+//#define SHOEBOTTOMLL 2 //在底部提取的过程中，用来区别使用set还是vector,vector可能会快很多
+
 class SurfacePure {
 public:
 	SurfacePure(Vector3f a, Vector3f b, Vector3f c) :
@@ -45,11 +47,21 @@ public:
 		mid(b),
 		end(c)
 	{
-		Vector3f ab = a - b;
-		ab = (a - c).cross(ab);
+		init();
+	}
+	SurfacePure(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c)
+	{
+		start = Vector3f(a[0], a[1], a[2]);
+		mid = Vector3f(b[0], b[1], b[2]);
+		end = Vector3f(c[0], c[1], c[2]);
+		init();
+	}
+	void init() {
+		Vector3f ab = start - mid;
+		ab = (start - end).cross(ab);
 		mCoeABC = Vector3f(ab[0], ab[1], ab[2]);
 
-		float d = ab.dot(Vector3f(0, 0, 0) - a) / mCoeABC.norm();
+		float d = ab.dot(Vector3f(0, 0, 0) - start) / mCoeABC.norm();
 		mCoeABC.normalize();
 		mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
 	}
@@ -89,7 +101,7 @@ public:
 	struct OutBottom {
 		MyMesh::VertexHandle n;
 
-		//MyMesh::Point a;
+		MyMesh::Point a;
 		MyMesh::Normal s;
 		//int i=0;
 		float x = 1;
@@ -102,6 +114,15 @@ public:
 			return n.idx()< m.n.idx();
 		}
 	};
+	struct OutBottomLine {
+		MyMesh::Normal s;   //向量标准差--均方差的开平方
+		MyMesh::Point a;
+		float x;			//标准差向量的长度
+		int ith;			//mOutline2 系数，该点为第几个点
+		bool operator < (const struct OutBottomLine &m)const {
+			return m.x < x;
+		}
+	};
 	
 	MyMesh  mesh;
 
@@ -111,9 +132,7 @@ public:
 	void MoveVertex(float len); //沿着法向量移动指定长度 for test
 	void ReleaseVertexNormals();
 	void BottomVertex(vector<Vector3f>*a); //提取鞋楦底部点
-
-	void BotIteration(set<struct OutBottom>&arr,int idx, int iver); //private
-
+	
 	static Vector3f MyOpenMesh::EigenTransfer(MyMesh::Point a);
 	static MyMesh::Point MyOpenMesh::MeshTransfer(Vector3f a);
 
@@ -127,15 +146,15 @@ public:
 	
 	void MyOpenMesh::ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
 
-
-	vector<struct OutBottom> ShoeBottomLine(vector<MyMesh::Point>&a);
+	void ShoeBottomLine(vector<struct OutBottom>&arrx);
+	void FindFloorContour(vector<MyMesh::Point> &floorContour);
 
 	int TotalVertex() {
 		return mesh.n_vertices();
 	}
 private:
-	
 	OpenMesh::IO::Options opt;
+	void BotIteration(set<struct OutBottom>&arr, int idx, int iver); //用来在底部进行迭代求取，不过速度太慢
 	
 	/*
 		将鞋楦分为若干个部分：
@@ -158,7 +177,7 @@ private:
 
 typedef struct MyOpenMesh::OutBottom MyOutBottom;
 typedef struct MyOpenMesh::OutNoraml MyOutNormal;
-
+typedef struct MyOpenMesh::OutBottomLine MyBotOutLine;
 
 class SurfaceCoe {
 public:
@@ -166,7 +185,6 @@ public:
 	SurfaceCoe(MyMesh::Point mid, MyMesh::Point end, MyMesh::VertexHandle c, MyMesh &d);  //三个点确定一个平面
 	SurfaceCoe(Vector3f bf, MyMesh::VertexHandle df, float x, MyMesh &b);			//一条直线加一个点确定一个平面,中间点即为起始点
 	SurfaceCoe(MyMesh::VertexHandle start, MyMesh::Point end, MyMesh &d);	//三点确定一个平面，首先给出两个点，另一个点可变，给除初始位置点和end点
-	
 	~SurfaceCoe() {};
 
 	struct CutArry {
@@ -195,7 +213,7 @@ public:
 
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigen(vector<Vector4f> *a);
-	bool OutlineEigenf(vector<Vector3f> *a);
+	bool OutlineEigenf(const char *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
 	
 	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
@@ -218,6 +236,9 @@ public:
 	void SetMIth(int i) { mIth[2] = i; }
 	MyMesh::VertexHandle ReturnVertexHandle() { return mHandleBegin; }
 	
+	void InitMidEndPoint(vector<MyMesh::Point>&a,float c,vector<MyMesh::Point>&b);//临时
+	void InitMidEndPoint(vector<MyMesh::Point>&a);
+	void InitMidTopPoint(vector<MyMesh::Point>&a);
 private:
 	MyMesh &mesh;
 
@@ -241,6 +262,7 @@ private:
 	void OutlineRefine();		//平滑outline
 	void CoquerMidEnd();		//寻找中值点以及终值点
 	float OutlineExpansion();	//变形扩围，放入相应的allocatexcoe里面
+	//void InitMidEndPoint();
 
 	int NextHalfEdgeJudge(MyMesh::HalfedgeHandle heh) {
 		MyMesh::VertexHandle vertex_i = mesh.to_vertex_handle(heh);		//指向点

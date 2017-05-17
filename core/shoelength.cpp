@@ -53,7 +53,7 @@ void Quaerniont() {
 #define HEELHIGHT 90.06 //mm
 
 string increname(int i) {
-	string head = "cutoutline-wist"; string suffix = "-ext.obj";
+	string head = "Metara-Outline"; string suffix = ".obj";
 	char num[3];
 	sprintf(num, "%d", i);
 	string acf(num);
@@ -89,6 +89,7 @@ void BackExpansion(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*back, SurfaceCoe*w
 	cout << "Back stl file output over!" << endl;
 }
 
+
 void WistExpansion(MyOpenMesh&ios, SurfaceCoe&sfc,SurfaceCoe*meta, SurfaceCoe*back, SurfaceCoe*wist, float exp) {
 	vector<Vector3f>outline;
 	vector<MySurCutArry> arrywist = sfc.OutCutOutline(3, meta, wist, back);
@@ -120,41 +121,96 @@ void WistExpansion(MyOpenMesh&ios, SurfaceCoe&sfc,SurfaceCoe*meta, SurfaceCoe*ba
 	}
 	cout << "Wist expansion over!" << endl;
 }
+bool MetaraTopRefine(vector<MyMesh::Point>&aps) {
+	if (aps.size() < 3) {
+		cout << "aps num is not enough!" << endl;
+		return 0;
+	}
+	vector<MyMesh::Point>sm;
+	sm.push_back(aps[0]);
+	for (int i = 1; i < aps.size(); i++) {
+		//cout << aps[i][1] * sm[sm.size() - 1][1] <<" "<< abs(aps[i][0] - sm[sm.size() - 1][0]) <<endl;
+		if ((aps[i][1] * sm[sm.size() - 1][1]) < 0) {
+			sm.push_back(aps[i]);
+		}
+		else if (abs(aps[i][0] - sm[sm.size() - 1][0]) > 2) {
+			sm.push_back(aps[i]);
+		}
+		if (sm.size() >= 3) {
+			break;
+		}
+	}
+	if (sm.size() < 3) {
+		cout << "sm num is not enough!" << endl;
+		return 0;
+	}
+	aps.clear();
+	for (auto i : sm) {
+		aps.push_back(i);
+	}
+	return 1;
+}
 
 void MetaraExpansion(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*meta, float exp) {
 	vector<Vector3f>outline;
-
+	
 	vector<MySurCutArry> arry = sfc.OutCutOutline(exp, meta, sfc.TempVector());
 	vector<SurfaceCoe*> cutout(arry.size());
 
-	ManageObj arps("33.txt");
 	vector<MyMesh::Point> arp;
+	vector<MyMesh::Point> aps;//提取碗口平面三点
+
+	/*ManageObj arps("33.txt");
 	if (!arps.ReadMeshPoints(arp)) {
 		cout << "Metara Read File Eroor" << endl;
 		return;
-	}
-	SurfacePure *uptop = new SurfacePure(Vector3f(125.350765, -5.539230, 162.495641), Vector3f(98.406893, 9.889621, 171.593580), Vector3f(64.520314, 0.782637, 181.256004));
+	}*/
+	//SurfacePure *uptop = new SurfacePure(Vector3f(125.350765, -5.539230, 162.495641), Vector3f(98.406893, 9.889621, 171.593580), Vector3f(64.520314, 0.782637, 181.256004));
 
 	for (int i = 0; i < arry.size(); i++) {
 		cutout[i] = new SurfaceCoe(arry[i].n, arry[i].a, arry[i].x, ios.mesh);
 		if (cutout[i]->Init()) {
-			cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
-			cutout[i]->AllocateXCoe(uptop);// (meta, p2[0], p2[2]);//扩散
+			//cutout[i]->InitMidEndPoint(arp,123.6,aps);//184.6*2/3
+			cutout[i]->InitMidEndPoint(arp);//新算法
+			//cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
+			//cutout[i]->AllocateXCoe(uptop);// (meta, p2[0], p2[2]);//扩散
 
-			cutout[i]->OutlineEigen(&outline);
+			//cutout[i]->OutlineEigenf(increname(i).c_str());
+
+			/*cutout[i]->OutlineEigen(&outline);
 			ManageObj::OutFilePointObj(&outline, increname(i).c_str());
-			outline.clear();
+			outline.clear();*/
 		}
 	}
+	//ManageObj::OutFileOutlinePointXyz(&arp, "pair.xyz");//output arp for debug;
+	for (int i = arry.size() - 1; i > 0; i--) { //初始化顶部点
+		cutout[i]->InitMidTopPoint(aps);
+		if (aps.size() >= 3) {
+			break;
+		}
+	}
+	if (aps.size() < 3) {
+		cout << "aps not enough!" << endl;
+		return;
+	}
+	/*if (!MetaraTopRefine(aps)) {
+		cout << "Wan Kou Surface is not Satisfied!" << endl;
+		return;
+	}*/
 
+	SurfacePure *uptopt = new SurfacePure(aps[0], aps[1], aps[2]);
+	for (int i = 0; i < arry.size(); i++) {
+		cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
+		cutout[i]->AllocateXCoe(uptopt);// (meta, p2[0], p2[2]);//扩散
+	}
 	//ManageObj arpst("mt.txt");
 	//vector<MyMesh::Point> arpp;
 	//arpst.ReadMeshPoints(arpp);
 	//ios.ShoeExpansion(cutout, arpp); //??debug error!
 
-	//ios.ShoeExpansion(cutout,uptop);
+	//ios.ShoeExpansion(cutout,uptop);//just for debug
 	ios.ShoeExpansion(cutout);
-	ios.WriteStlfile("metara-shoestlext-7.5-large3.stl", 1);
+	ios.WriteStlfile("metara-shoestlext-auto-large3.stl", 1);
 
 	for (int i = 0; i < arry.size(); i++) {
 		delete cutout[i];
@@ -196,11 +252,15 @@ int main(int argc, char* argv[])
 	MyMesh::VertexHandle vertex[3];
 	ios.ReadStlfile("shoestl.stl");
 
-	vector<MyMesh::Point> bottomline;//底部轮廓线的提取
-	vector<MyOutBottom>  botall;
-	botall=ios.ShoeBottomLine(bottomline);
+	/*最新的思路可以使用向量方差值最大，以及最底层校验相结合的方法进行处理*/
+	//vector<MyMesh::Point> bottomline;//底部轮廓线的提取
+	//vector<MyOutBottom>  botall;
+	//botall=ios.ShoeBottomLine(bottomline);//需要解决不同鞋子匹配使用问题，一方面将向量单位化，对于最终的比较理想的结果在1.2~1.3之间，一定存在杂项
+	//ios.ShoeBottomLine(botall);
 	//ManageObj::OutFilePointObj(bottomline, "bottomoutlien.obj");
-	ManageObj::OutFilePointAna(botall,"botana.obj");
+	//ManageObj::OutFilePointAna(botall,"botana.obj");
+	//ios.FindFloorContour(bottomline);
+	//ManageObj::OutFilePointObj(bottomline, "bottom-z.obj");
 
 	ios.FindNearest(p2[0],p2[1],p2[2],vertex);
 	SurfaceCoe sfc(vertex, ios.mesh); //中轴横截面
