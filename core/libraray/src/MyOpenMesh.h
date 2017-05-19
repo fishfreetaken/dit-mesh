@@ -139,10 +139,11 @@ public:
 	void FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, MyMesh::VertexHandle *p);
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
+	void InitTriPoint(MyMesh::VertexHandle *p);
+
 	void ShoeExpansion(vector<SurfaceCoe *> &arr);
-	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfacePure *met);
 	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
-	vector<MyMesh::Point> ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css); //debug
+	void ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css); //debug
 	
 	void MyOpenMesh::ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
 
@@ -198,11 +199,12 @@ public:
 	void InitTwoPoints(MyMesh::Point a, MyMesh::Point b) { mVertexMid = a; mVertexEnd = b; CoquerMidEnd(); } //用于一条直线与一个点确定一个平面
 
 	Vector3f AxieCut(float heelhight);//根据中轴线将鞋楦进行切割分切 (等会儿再切！！！)  给出中轴线向量
-	Vector3f TempVector(); //临时用手点出来点作为中轴线
+	Vector3f TempVector(); //1 临时用手点出来点作为中轴线 //2 使用sfc end点作为中轴线线
+
 	//void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
 	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi);   //给出沿横切线的分割点；
 	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, SurfaceCoe *metc);//腰围增加给出横切面
-	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, SurfaceCoe &sfc, MyOpenMesh &ios);
+	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, MyOpenMesh &ios);
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
 	SurfaceCoe* FindWaistLine(SurfaceCoe *met);
@@ -236,8 +238,14 @@ public:
 	void SetMIth(int i) { mIth[2] = i; }
 	MyMesh::VertexHandle ReturnVertexHandle() { return mHandleBegin; }
 	
-	void InitMidEndPoint(vector<MyMesh::Point>&a,float c,vector<MyMesh::Point>&b);//临时
 	void InitMidEndPoint(vector<MyMesh::Point>&a);
+	void InitMidEndPoint(MyMesh::Point&mid, MyMesh::Point&end) { 
+		vector<MyMesh::Point>mv; 
+		InitMidEndPoint(mv); 
+		mid = mv[0]; 
+		end = mv[1]; 
+	}
+	
 	void InitMidTopPoint(vector<MyMesh::Point>&a);
 private:
 	MyMesh &mesh;

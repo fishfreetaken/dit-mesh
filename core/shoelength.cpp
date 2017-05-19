@@ -52,56 +52,73 @@ void Quaerniont() {
 #define STEPADDLENGHT 5 //mm
 #define HEELHIGHT 90.06 //mm
 
-string increname(int i) {
-	string head = "Metara-Outline"; string suffix = ".obj";
+string increname(int i,string ghead) {
+
+	string head = "-Outline"; string suffix = ".obj";
 	char num[3];
 	sprintf(num, "%d", i);
 	string acf(num);
-	head += acf + suffix;
+	head =ghead+head+acf + suffix;
 	return head;
 }
 
-void BackExpansion(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*back, SurfaceCoe*wist,float exp) {
+bool BackExpansion(MyOpenMesh&ios, MyMesh::VertexHandle *vertex, SurfaceCoe*back, SurfaceCoe*wist, SurfaceCoe* &sfc, float exp) {
 	vector<Vector3f>outline;
-	vector<MySurCutArry> arry = sfc.OutCutOutline(exp, wist, back,sfc,ios);
+	vector<MySurCutArry> arry = sfc->OutCutOutline(exp, wist, back,ios);
 	vector<SurfaceCoe*> cutout(arry.size());
+	//vector<MyMesh::Point> arp;
+	//ManageObj arps("55.txt");
+	//if (!arps.ReadMeshPoints(arp)) {
+	//	cout << "Back Read file" << endl;
+	//	return;
+	//}
+	//for (int i = 0; i < arry.size(); i++) {
+	//	cutout[i] = new SurfaceCoe(arry[i].n, arry[i].a, arry[i].x, ios.mesh);
+	//	if (cutout[i]->Init()) {
+	//		cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
+	//		cutout[i]->AllocateXCoe();// (meta, p2[0], p2[2]);//扩散
 
-	ManageObj arps("55.txt");
-	vector<MyMesh::Point> arp;
-	if (!arps.ReadMeshPoints(arp)) {
-		cout << "Back Read file" << endl;
-		return;
-	}
-
-	for (int i = 0; i < arry.size(); i++) {
+	//		cutout[i]->OutlineEigen(&outline);
+	//		ManageObj::OutFilePointObj(&outline, increname(i).c_str());
+	//		outline.clear();
+	//	}
+	//}
+	MyMesh::Point arpmid, arpend;
+	for (int i = 0; i < arry.size(); i++ ) {
 		cutout[i] = new SurfaceCoe(arry[i].n, arry[i].a, arry[i].x, ios.mesh);
 		if (cutout[i]->Init()) {
-			cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
+			cutout[i]->InitMidEndPoint(arpmid, arpend);
+			cutout[i]->InitTwoPoints(arpmid, arpend);
 			cutout[i]->AllocateXCoe();// (meta, p2[0], p2[2]);//扩散
-
-			cutout[i]->OutlineEigen(&outline);
-			ManageObj::OutFilePointObj(&outline, increname(i).c_str());
-			outline.clear();
 		}
+		
 	}
 	ios.ShoeExpansionWist(cutout);
-	ios.WriteStlfile("back-shoestlext-3-26-gauss-large.stl", 1);
+	ios.WriteStlfile("back-PFHext-large3.stl", 1);
 	cout << "Back stl file output over!" << endl;
+
+	delete back;
+	delete sfc;
+	sfc = new SurfaceCoe(vertex, ios.mesh); //中轴横截面
+	if (!sfc->Init(1)) {
+		cout << "Wist sfc init error!" << endl;
+		return 0;
+	}
+	back = sfc->FindWaistLine(back); //垂直于x轴寻找腰围
+	return 1;
 }
 
 
-void WistExpansion(MyOpenMesh&ios, SurfaceCoe&sfc,SurfaceCoe*meta, SurfaceCoe*back, SurfaceCoe*wist, float exp) {
+bool WistExpansion(MyOpenMesh&ios, MyMesh::VertexHandle *vertex,SurfaceCoe*meta, SurfaceCoe*back, SurfaceCoe*&wist, SurfaceCoe* &sfc, float exp) {
 	vector<Vector3f>outline;
-	vector<MySurCutArry> arrywist = sfc.OutCutOutline(3, meta, wist, back);
-	
-	ManageObj wistarps("44.txt");
-	vector<MyMesh::Point> arpwist;
+	vector<MySurCutArry> arrywist = sfc->OutCutOutline(exp, meta, wist, back);
+	vector<SurfaceCoe*> cutoutwist(arrywist.size());
+	//vector<MyMesh::Point> arpwist;
+	/*ManageObj wistarps("44.txt");
 	if (!wistarps.ReadMeshPoints(arpwist)) {
 		cout << "Wist Read file!" << endl;
 		return;
 	}
-
-	vector<SurfaceCoe*> cutoutwist(arrywist.size());
 	for (int i = 0; i < cutoutwist.size(); i++) {
 		cutoutwist[i] = new SurfaceCoe(arrywist[i].n, arrywist[i].a, arrywist[i].x, ios.mesh);
 		if (cutoutwist[i]->Init()) {
@@ -109,52 +126,41 @@ void WistExpansion(MyOpenMesh&ios, SurfaceCoe&sfc,SurfaceCoe*meta, SurfaceCoe*ba
 			cutoutwist[i]->AllocateXCoe();
 
 			cutoutwist[i]->OutlineEigen(&outline);
-			ManageObj::OutFilePointObj(&outline, increname(i).c_str());
+			ManageObj::OutFilePointObj(&outline, increname(i,"Wist").c_str());
 			outline.clear();
+		}
+	}*/
+	MyMesh::Point arpmid, arpend;
+	for (int i = 0; i < cutoutwist.size(); i++) {
+		cutoutwist[i] = new SurfaceCoe(arrywist[i].n, arrywist[i].a, arrywist[i].x, ios.mesh);
+		if (cutoutwist[i]->Init()) {
+			cutoutwist[i]->InitMidEndPoint(arpmid, arpend);
+			cutoutwist[i]->InitTwoPoints(arpmid, arpend);
+			cutoutwist[i]->AllocateXCoe();
 		}
 	}
 	ios.ShoeExpansionWist(cutoutwist);
-	ios.WriteStlfile("wist-shoestlext-31-ext-large.stl", 1);
+	ios.WriteStlfile("wist-PFHext-ext-large3.stl", 1);
 
 	for (int i = 0; i < arrywist.size(); i++) {
 		delete cutoutwist[i];
 	}
 	cout << "Wist expansion over!" << endl;
-}
-bool MetaraTopRefine(vector<MyMesh::Point>&aps) {
-	if (aps.size() < 3) {
-		cout << "aps num is not enough!" << endl;
+
+	delete wist;
+	delete sfc;
+	sfc = new SurfaceCoe(vertex, ios.mesh); //中轴横截面
+	if (!sfc->Init(1)) {
+		cout << "Wist sfc init error!" << endl;
 		return 0;
 	}
-	vector<MyMesh::Point>sm;
-	sm.push_back(aps[0]);
-	for (int i = 1; i < aps.size(); i++) {
-		//cout << aps[i][1] * sm[sm.size() - 1][1] <<" "<< abs(aps[i][0] - sm[sm.size() - 1][0]) <<endl;
-		if ((aps[i][1] * sm[sm.size() - 1][1]) < 0) {
-			sm.push_back(aps[i]);
-		}
-		else if (abs(aps[i][0] - sm[sm.size() - 1][0]) > 2) {
-			sm.push_back(aps[i]);
-		}
-		if (sm.size() >= 3) {
-			break;
-		}
-	}
-	if (sm.size() < 3) {
-		cout << "sm num is not enough!" << endl;
-		return 0;
-	}
-	aps.clear();
-	for (auto i : sm) {
-		aps.push_back(i);
-	}
+	wist = sfc->FindWaistLine(meta); //垂直于x轴寻找腰围
 	return 1;
 }
 
-void MetaraExpansion(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*meta, float exp) {
-	vector<Vector3f>outline;
-	
-	vector<MySurCutArry> arry = sfc.OutCutOutline(exp, meta, sfc.TempVector());
+bool MetaraExpansion(MyOpenMesh&ios, MyMesh::VertexHandle *vertex,MyMesh::VertexHandle *vertex2, SurfaceCoe* &meta,SurfaceCoe* &sfc,float exp) {
+	vector<Vector3f>outline; //for debug output
+	vector<MySurCutArry> arry = sfc->OutCutOutline(exp, meta, sfc->TempVector());
 	vector<SurfaceCoe*> cutout(arry.size());
 
 	vector<MyMesh::Point> arp;
@@ -170,11 +176,7 @@ void MetaraExpansion(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*meta, float exp)
 	for (int i = 0; i < arry.size(); i++) {
 		cutout[i] = new SurfaceCoe(arry[i].n, arry[i].a, arry[i].x, ios.mesh);
 		if (cutout[i]->Init()) {
-			//cutout[i]->InitMidEndPoint(arp,123.6,aps);//184.6*2/3
 			cutout[i]->InitMidEndPoint(arp);//新算法
-			//cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
-			//cutout[i]->AllocateXCoe(uptop);// (meta, p2[0], p2[2]);//扩散
-
 			//cutout[i]->OutlineEigenf(increname(i).c_str());
 
 			/*cutout[i]->OutlineEigen(&outline);
@@ -191,41 +193,50 @@ void MetaraExpansion(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*meta, float exp)
 	}
 	if (aps.size() < 3) {
 		cout << "aps not enough!" << endl;
-		return;
+		return 0;
 	}
-	/*if (!MetaraTopRefine(aps)) {
-		cout << "Wan Kou Surface is not Satisfied!" << endl;
-		return;
-	}*/
 
 	SurfacePure *uptopt = new SurfacePure(aps[0], aps[1], aps[2]);
 	for (int i = 0; i < arry.size(); i++) {
 		cutout[i]->InitTwoPoints(arp[i * 2], arp[i * 2 + 1]);
 		cutout[i]->AllocateXCoe(uptopt);// (meta, p2[0], p2[2]);//扩散
 	}
-	//ManageObj arpst("mt.txt");
-	//vector<MyMesh::Point> arpp;
-	//arpst.ReadMeshPoints(arpp);
-	//ios.ShoeExpansion(cutout, arpp); //??debug error!
 
-	//ios.ShoeExpansion(cutout,uptop);//just for debug
 	ios.ShoeExpansion(cutout);
-	ios.WriteStlfile("metara-shoestlext-auto-large3.stl", 1);
+	//ios.WriteStlfile("metara-PFHext-auto-large5.stl", 1);
 
 	for (int i = 0; i < arry.size(); i++) {
 		delete cutout[i];
 	}
+	delete meta;
 	cout << "Metara Expansion Over!" << endl;
+	delete sfc;
+	sfc = new SurfaceCoe(vertex, ios.mesh); //中轴横截面
+	if (!sfc->Init(1)) {
+		cout << "Metara sfc init error!" << endl;
+		return 0;
+	}
+
+	meta= sfc->FindMetara(vertex2[0], vertex2[2]);	//扩围后需要重新寻找掌围，已经初始化过的掌围
+	return 1;
 }
 
-void MoveLength(MyOpenMesh&ios, SurfaceCoe&sfc, SurfaceCoe*meta, float exp) {
+bool MoveLength(MyOpenMesh&ios, MyMesh::VertexHandle *vertex, SurfaceCoe*meta, SurfaceCoe* &sfc, float exp) {
 	cout << "move add lenth..." << endl;
-	float ex=sfc.FindAddLenth(meta,exp);
 
-	ios.ShoeAddLength(sfc.ReturnStartPoint(), meta, exp);
-	
-	ios.WriteStlfile("len-shoestl-ext.stl", 1);
+	float ex=sfc->FindAddLenth(meta,exp);
+	ios.ShoeAddLength(sfc->ReturnStartPoint(), meta, ex);
+
+	ios.WriteStlfile("len-PFH-ext5.stl", 1);
 	cout << "Add Length OVER!" << endl;
+
+	delete sfc;
+	sfc = new SurfaceCoe(vertex, ios.mesh); //中轴横截面
+	if (!sfc->Init(1)) {
+		cout << "add len sfc init error!" << endl;
+		return  0;
+	}
+	return 1;
 }
 
 int main(int argc, char* argv[])
@@ -234,23 +245,32 @@ int main(int argc, char* argv[])
 
 	/* 纵向横切面三点 */
 	MyMesh::Point p2[3];
-	//p2[0] = MyMesh::Point(237.816803, 1.965069, 14.085081);
-	p2[0] = MyMesh::Point(237.5670, 1.2265, 11.8482);
+	/*p2[0] = MyMesh::Point(237.5670, 1.2265, 11.8482);
 	p2[1] = MyMesh::Point(49.4055, -0.9980, 184.6677);
-	p2[2] = MyMesh::Point(28.649047, 0.477465, 90.453272);
+	p2[2] = MyMesh::Point(28.649047, 0.477465, 90.453272);*/
+	//PFH-10
+	p2[0] = MyMesh::Point(251.237072, - 1.049236, 12.656890);
+	p2[1] = MyMesh::Point(3.140964, 0.610319, 101.681542);
+	p2[2] = MyMesh::Point(3.739703, - 2.403674, 10.501304);
+
 	
 	//float coeabc = OutLine::GiveCoe(p2[0], p2[1], p2[2], &coe);  //??
 	/*掌围*/
 	MyMesh::Point p[3];
-	p[0] = MyMesh::Point(149.726660, -45.038730, 7.791545);
+	/*p[0] = MyMesh::Point(149.726660, -45.038730, 7.791545);
 	p[1] = MyMesh::Point(175.241229, -4.591933, 34.809070);
-	p[2] = MyMesh::Point(162.523123, 36.191162, 4.322560);
-	
+	p[2] = MyMesh::Point(162.523123, 36.191162, 4.322560);*/
+	//PFH-10-BZ-6
+	p[0] = MyMesh::Point(154.442764, -45.383193, 5.547377);
+	p[1] = MyMesh::Point(0,0,0);
+	p[2] = MyMesh::Point(165.761880,35.007070, 5.553459);
+
 	vector<Vector3f> outline;
 	MyOpenMesh ios;
 
-	MyMesh::VertexHandle vertex[3];
-	ios.ReadStlfile("shoestl.stl");
+	MyMesh::VertexHandle vertex[3], vertex2[3];
+	//ios.ReadStlfile("shoestl.stl");
+	ios.ReadStlfile("PFH-10-BZ-6.stl");
 
 	/*最新的思路可以使用向量方差值最大，以及最底层校验相结合的方法进行处理*/
 	//vector<MyMesh::Point> bottomline;//底部轮廓线的提取
@@ -261,32 +281,49 @@ int main(int argc, char* argv[])
 	//ManageObj::OutFilePointAna(botall,"botana.obj");
 	//ios.FindFloorContour(bottomline);
 	//ManageObj::OutFilePointObj(bottomline, "bottom-z.obj");
-
+	//ios.InitTriPoint(vertex);//涉及到旋转坐标，这个应该不太适用
 	ios.FindNearest(p2[0],p2[1],p2[2],vertex);
-	SurfaceCoe sfc(vertex, ios.mesh); //中轴横截面
+	ios.FindNearest(p[0], p[1], p[2], vertex2);		//初始化最近位置
 
-	SurfaceCoe *meta,*wist,*back;
-	if (!sfc.Init(1)) {
+	bool judge = false;
+	SurfaceCoe *sfc, *meta, *wist, *back;
+
+	sfc = new SurfaceCoe(vertex, ios.mesh); //中轴横截面
+	if (!sfc->Init(1)) {
 		cout << "sfc init error!" << endl;
 		return 0;
 	}
 	//sfc.OutlineEigen(&outline);// 将原有的outlien进行输出
 	//ManageObj::OutFilePointObj(&outline, "outline.obj");
 	//outline.clear();
+	meta = sfc->FindMetara(vertex2[0], vertex2[2]);	//寻找掌围，已经初始化过的掌围
+	
+	judge=MoveLength(ios, vertex, meta,sfc,5);
+	if (!judge) {
+		cout << "Main error 0" << endl;
+		return -1;
+	}
 
-	ios.FindNearest(p[0], p[1], p[2], vertex);		//初始化最近位置
-	meta = sfc.FindMetara(vertex[0], vertex[2]);	//寻找掌围，已经初始化过的掌围
+	judge=MetaraExpansion(ios,vertex,vertex2,meta,sfc,5);  //掌围加肥
+	if (!judge) {
+		cout << "Main error 1" << endl;
+		return -1;
+	}
 
-	//MoveLength(ios, sfc, meta, 3);
+	wist=sfc->FindWaistLine(meta); //垂直于x轴寻找腰围
+	back = sfc->FindWaistLine(wist); //垂直于x轴寻找背围
 
-	MetaraExpansion(ios, sfc, meta, 5);  //掌围加肥
+	judge=WistExpansion(ios, vertex, meta, back, wist,sfc, 3); //腰围加肥
+	if (!judge) {
+		cout << "Main error 2" << endl;
+		return -1;
+	}
 
-	wist=sfc.FindWaistLine(meta); //垂直于x轴寻找腰围
-	back = sfc.FindWaistLine(wist); //垂直于x轴寻找背围
-
-	WistExpansion(ios, sfc, meta, back, wist, 3); //腰围加肥
-
-	BackExpansion(ios, sfc, back, wist, 3); //背围加肥
+	judge=BackExpansion(ios, vertex, back, wist,sfc, 3);		 //背围加肥
+	if (!judge) {
+		cout << "Main error 3" << endl;
+		return -1;
+	}
 
 	//back->OutlineEigen(&outline);// 将原有的outlien进行输出
 	//ManageObj::OutFilePointObj(&outline, "outlineback-non.obj");
@@ -300,7 +337,7 @@ int main(int argc, char* argv[])
 	ManageObj::OutFilePointObj(&outline, "outlinezhi-non.obj");
 	outline.clear();*/
 
-	meta->AllocateXCoe(stepforward);			//按照不同方式配置递增系数
+	//meta->AllocateXCoe(stepforward);			//按照不同方式配置递增系数
 
 	system("pause");
 	return 0;

@@ -70,6 +70,78 @@ void MyOpenMesh::FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, 
 	*(p+2) = mesh.vertex_handle(v_it_s[2]->idx());
 }
 
+void MyOpenMesh::InitTriPoint(MyMesh::VertexHandle *p) {
+	MyMesh::VertexIter  v_it, v_end(mesh.vertices_end());
+	MyMesh::VertexIter	v_it_s[3];
+	float min[3] = { 0,0,9999 };
+
+	MyMesh::Point pp, es(0, 0, 0);
+	cout << "Init Tri Nearest Vertex..." << endl;
+
+	for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+	{
+		pp = mesh.point(*v_it);
+		if (min[0] < pp[0]) { //x轴向最远的
+			min[0] = pp[0];
+			v_it_s[0] = v_it;
+		}
+		if (min[1] < pp[2]) { //z轴向最高的
+			min[1] = pp[2];
+			v_it_s[1] = v_it;
+		}
+		if (min[2] > pp[0]) { //x轴向最近的
+			min[2] = pp[0];
+			v_it_s[2] = v_it;
+		}
+		//es += pp; //for test
+	}
+	*(p) = mesh.vertex_handle(v_it_s[0]->idx());
+	*(p + 1) = mesh.vertex_handle(v_it_s[1]->idx());
+	*(p + 2) = mesh.vertex_handle(v_it_s[2]->idx());
+
+	/*cout << "P1: " << mesh.point(*p) << endl;
+	cout << "P2: " << mesh.point(*(p + 1)) << endl;
+	cout << "P3: " << mesh.point(*(p + 2)) << endl;*/
+	//int init = 0;
+	MyMesh::Point tri[3];
+	tri[0] = mesh.point(*p);
+	tri[1] = mesh.point(*(p + 1));
+	tri[2] = mesh.point(*(p + 2));
+	//if (abs(tri[0][1]) > 0.5) {
+		tri[0][1] = 0;
+		//init++;
+	//}
+	//if (abs(tri[1][1]) > 0.5) {
+		tri[1][1] = 0;
+		///init++;
+	//}
+	//if (abs(tri[2][1]) > 0.5) {
+		tri[2][1] = 0;
+	//	init++;
+	//}
+	//if (!init) {
+	//	return;
+	//}
+	FindNearest(tri[0], tri[1], tri[2], p);
+
+	cout << "P1: " << mesh.point(*p) << endl;
+	cout << "P2: " << mesh.point(*(p + 1)) << endl;
+	cout << "P3: " << mesh.point(*(p + 2)) << endl;
+	return;
+
+	/*es = es / mesh.n_vertices(); //重心位置-
+	cout <<"ES: "<<es << endl;	
+	float lin,cp=0;
+	for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it){
+		lin = (es - mesh.point(*v_it)).norm();
+		if (lin > cp) {
+			cp = lin;
+			v_it_s[0] = v_it;
+		}
+	}
+	cout << "PX: " << mesh.point(mesh.vertex_handle(v_it_s[0]->idx())) << endl;*/
+}
+
 MyMesh::VertexHandle MyOpenMesh::FindNearest(MyMesh::Point a) {  //2
 	MyMesh::VertexIter  v_it, v_end(mesh.vertices_end());
 	MyMesh::VertexIter	v_it_s;
@@ -324,7 +396,7 @@ void MyOpenMesh::FindFloorContour(vector<MyMesh::Point> &out) {
 	}
 }
 
-vector<MyMesh::Point> MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css) {
+void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css) {
 	MyMesh::Point  p,p1,p2;// n为递增向量
 	float s1, s2; int sta=0,end=0;
 	vector<MyMesh::Point>  result;
@@ -392,7 +464,8 @@ vector<MyMesh::Point> MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, vector
 		}
 		cout << endl;
 	}
-	return result;
+	
+	return;
 }
 
 void MyOpenMesh::ShoeAddLength(MyMesh::Point start, SurfaceCoe*met ,float exp) {
@@ -472,82 +545,6 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx) {
 					break;
 				}
 			}else {
-				p += arr[i]->FindNearestPoint(p, s1); //s==0;
-				break;
-			}
-		}
-		mesh.set_point(*v_it, p);
-	}
-}
-
-void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx,SurfacePure*met) {
-
-	vector<SurfaceCoe*>&arr = arrx;
-	cout << "Now is shoe Expansing..." << endl;
-	MyMesh::Point p, p1, p2;// n为递增向量
-	float s1, s2;
-
-	int k = mesh.n_vertices();
-	int oc = 0;
-	int arrlen = arr.size();
-
-	int sta = 0, end = 0;
-
-	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
-	{
-		oc++;
-		if (!(oc % 10000)) {
-			cout << "now is :" << (oc * 100 / k) << "%" << endl;
-		}
-		p = mesh.point(*v_it);
-		if (abs(met->DistSurface(p)) < 1.2) {
-			continue;
-		}
-		int i = arrlen / 2;
-		end = arrlen;
-		sta = 0;
-		while (1) {
-			if (arr[i]->DistSurface(p) > 0) {
-				if (arr[i - 1]->DistSurface(p) > 0) {
-					if (i == 1) {
-						p += arr[i - 1]->FindNearestPoint(p, s1); //s==0;
-						break;
-					}
-					end = i;
-					i -= (i - sta) / 2;
-				}
-				else if (arr[i - 1]->DistSurface(p)<0) {
-					p2 = arr[i]->FindNearestPoint(p, s2);
-					p1 = arr[i - 1]->FindNearestPoint(p, s1);
-					p += p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
-					break;
-				}
-				else {
-					p += arr[i - 1]->FindNearestPoint(p, s1); //s==0;
-					break;
-				}
-			}
-			else if (arr[i]->DistSurface(p) < 0) {
-				if (arr[i + 1]->DistSurface(p) < 0) {
-					if (i == (arrlen - 2)) {  //1
-						p += arr[i + 1]->FindNearestPoint(p, s1); //s==0;
-						break;
-					}
-					sta = i;
-					i += (end - i) / 2;
-				}
-				else if (arr[i + 1]->DistSurface(p)>0) {
-					p2 = arr[i]->FindNearestPoint(p, s2);
-					p1 = arr[i + 1]->FindNearestPoint(p, s1);
-					p += p1*(s2 / (s1 + s2)) + p2*(s1 / (s1 + s2));
-					break;
-				}
-				else {
-					p += arr[i + 1]->FindNearestPoint(p, s1); //s==0;
-					break;
-				}
-			}
-			else {
 				p += arr[i]->FindNearestPoint(p, s1); //s==0;
 				break;
 			}
@@ -757,12 +754,17 @@ void SurfaceCoe::OutlineRefine() {
  	MyMesh::Point k;
 	k = mOutline2[0].a;
 	int j = 0;
+	int ini = 0;
 	for (int i = mOutline2.size() / 8; i < mOutline2.size(); i++) {
 		if (DistPoints(mOutline2[i].a, k) < 0.003) {
 			j = i;
-			cout << i << endl;
+			//cout << i << endl;
+			ini = 1;
 			break;
 		}
+	}
+	if (!ini) {
+		return;
 	}
 	vector<MyOutNormal> st;
 	for (int i = 0; i < j; i++) {
@@ -993,115 +995,6 @@ private:
 	MyMesh::Normal mN;
 	int Ith;
 };
-void SurfaceCoe::InitMidEndPoint(vector<MyMesh::Point>&fw, float fen,vector<MyMesh::Point>&fm) {
-	int window = 7;
-	CircleIndex *end=NULL,*start=NULL, *init2 = NULL;
-	CircleIndex *init = new CircleIndex(mOutline2[0].n, 0);
-	start = init;
-	for (int i = 1; i < mOutline2.size(); i++) {
-		end =new CircleIndex(mOutline2[i].n, i);
-		init->next = end;
-		end->up = init;
-		init = end;
-	}
-	start->up = end;
-	end->next = start;
-
-	set<MyBotOutLine> sum;
-	if (end == NULL) {
-		cout << "End is NULL" << endl;
-		return;
-	}
-	while (start != end) {
-		init = start;
-		init2 = start->up;
-		vector<MyMesh::Normal>sm;
-		for (int i = 0; i < window; i++) {
-			sm.push_back(init->RtNormal());
-			init = init->next;
-			sm.push_back(init2->RtNormal());
-			init2 = init2->up;
-		}
-		MyMesh::Normal es(0, 0, 0), dif(0, 0, 0);
-		for (auto i : sm) {
-			es += i;
-		}
-		es = es /(window*2);
-		for (auto i : sm) {
-			dif[0] += ((i[0] - es[0])) * ((i[0] - es[0]));
-			dif[1] += ((i[1] - es[1])) * ((i[1] - es[1]));
-			dif[2] += ((i[2] - es[2])) * ((i[2] - es[2]));
-		}
-		dif[0] = sqrt(dif[0]);
-		dif[1] = sqrt(dif[1]);
-		dif[2] = sqrt(dif[2]);
-		MyBotOutLine git;
-		git.s = dif;
-		git.x = dif.norm();
-		git.ith = start->RtIth();
-		sum.insert(git);
-		start = start->next;
-	}
-	
-	//set<MyBotOutLine>::iterator it(sum.begin());
-	MyMesh::Point bua, bub;
-	float lin = 0;
-	bool into = 0;
-	for (auto i : sum) {
-		/*if ((i.ith < (mOutline2.size() / 4)) || (i.ith >(mOutline2.size() * 3 / 4))) {
-			fm.push_back(mOutline2[i.ith].a);
-			continue;
-		}*/
-		if (mOutline2[i.ith].a[2] < fen) {
-			lin = mOutline2[i.ith].a[1];
-			if (lin > 0) {
-				bua = mOutline2[i.ith].a;
-			}
-			else {
-				bub = mOutline2[i.ith].a;
-			}
-			break;
-		}
-		else {
-			fm.push_back(mOutline2[i.ith].a);
-		}
-	}
-
-	for (auto i : sum) {
-		/*if ((i.ith < (mOutline2.size() / 4)) || (i.ith >(mOutline2.size() * 3 / 4))) {
-			fm.push_back(mOutline2[i.ith].a);
-			continue;
-		}*/
-		if (mOutline2[i.ith].a[2] < fen) {
-			if ((mOutline2[i.ith].a[1] * lin) < 0) {
-				if (lin > 0) {
-					bub = mOutline2[i.ith].a;
-				}
-				else {
-					bua = mOutline2[i.ith].a;
-				}
-				break;
-			}
-		}
-		else {
-			if (!into) {
-				if (fm.size()) {
-					fm.push_back(mOutline2[i.ith].a);
-					into = 1;
-				}
-			}
-		}
-	}
-
-	fw.push_back(bua);
-	fw.push_back(bub);
-
-	/*释放内存*/
-	for (int i = 0; i < mOutline2.size(); i++) {
-		delete start->up;
-		start = start->next;
-	}
-}
 
 void SurfaceCoe::InitMidEndPoint(vector<MyMesh::Point>&fw) {
 	int window = 7;
@@ -1248,7 +1141,7 @@ void SurfaceCoe::InitMidTopPoint(vector<MyMesh::Point>&fw) {
 		}
 	}//默认情况下bot应该处于500左右范围内的值(该值远远大于window窗口滤波范围)
 	upstep = abs((topv - lin) / 8);
-	cout << upstep << endl;
+	//cout << upstep << endl;
 
 	set<MyBotOutLine> sum1, sum2;//for debug
 	vector<MyBotOutLine>tf;
@@ -1422,9 +1315,19 @@ SurfaceCoe* SurfaceCoe::FindMetara(MyMesh::VertexHandle start, MyMesh::VertexHan
 			}
 		}
 	}
-	cout << "j:" << metara << endl;
+	cout << "Metara ith:" << metara << endl;
+	vector<MyMesh::Point> fm;
+	sfc.InitMidEndPoint(fm);
+	if (fm.size() < 2) {
+		cout << "metara point error" << endl;
+		return NULL;
+	}
+	cout << fm[0] << endl;
+	cout << fm[1] << endl;
 	MyMesh::VertexHandle sfcstartp = FindNearest(mOutline2[metara].a);
-	SurfaceCoe *ret = new SurfaceCoe(MyMesh::Point(160.563766,34.669678,2.144665),MyMesh::Point(146.947586,-44.111824,3.824428),sfcstartp,mesh);//手动给出底边的两个点
+	
+	SurfaceCoe *ret = new SurfaceCoe(fm[0], fm[1], sfcstartp, mesh);
+	//SurfaceCoe *ret = new SurfaceCoe(MyMesh::Point(160.563766,34.669678,2.144665),MyMesh::Point(146.947586,-44.111824,3.824428),sfcstartp,mesh);//手动给出底边的两个点
 	ret->Init(0);
 	ret->SetMIth(metara);
 	return ret;
@@ -1669,7 +1572,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp,SurfaceCoe *met,Vector3
 	return  arryx;
 }
 
-vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb,SurfaceCoe&sfc, MyOpenMesh&ios) { //背围
+vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, MyOpenMesh&ios) { //背围
 	cout << "back cut out..." << endl;
 	float xi = exp>0 ? -exp / metb->ReturnLength() : exp / metb->ReturnLength();
 	struct CutArry2 {
@@ -1684,9 +1587,10 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 	float test[] = { 0.05,0.15,0.25,0.6,0.85,0.95 };
 
 	MyMesh::Point pcc;
-	int iith=sfc.UpOneInch(metb->ReturnIth(2),pcc);
+	int iith=UpOneInch(metb->ReturnIth(2),pcc);
 	MyMesh::VertexHandle start = FindNearest(pcc);
 	SurfaceCoe *metc = new SurfaceCoe(metb->ReturnCoe(),start,0,ios.mesh);
+	metc->Init();
 	metc->SetMIth(iith);
 
 	float ju, max0, max1;
@@ -1718,7 +1622,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 		st.x = ju;
 		st.xb = 1 - (1 - ju)*(1 - ju);
 		st.x = xi*(1 - (ju + st.xa*(1 - ju) + st.xb*ju) / 2);
-		cout << st.xa << " : " << ju << " : " << st.xb << " : " << (ju + st.xa*(1 - ju) + st.xb*ju) / 2 << " : " << st.x << endl;
+		//cout << st.xa << " : " << ju << " : " << st.xb << " : " << (ju + st.xa*(1 - ju) + st.xb*ju) / 2 << " : " << st.x << endl;
 		
 #ifdef SWITCHOPEN
 		st.x = (1 - ju)*xi;
@@ -1768,7 +1672,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 	outfile.push_back(1);
 
 	interv = (metc->ReturnIth(2) - metb->ReturnIth(2)) / WISTSECTION2; //把第一段分成5份
-	printf("interv:%d\n", interv);
+	//printf("interv:%d\n", interv);
 	//int mmb = WISTSECTION2 - 1;
 	int mmb = 0;
 	for (int i = 1; i < WISTSECTION2; i++) {
@@ -1779,7 +1683,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 		st.x = 1 - ju;
 		st.xb = st.x*st.x;
 		st.xa = 1 - (1 - st.x)*(1 - st.x);
-		cout << st.xa << " : " << st.x << " : " << st.xb << " : " << (st.x + st.xa*st.x + st.xb*(1 - st.x)) / 2 << endl;
+		//cout << st.xa << " : " << st.x << " : " << st.xb << " : " << (st.x + st.xa*st.x + st.xb*(1 - st.x)) / 2 << endl;
 		st.x = xi*(st.x + st.xa*st.x + st.xb*(1 - st.x)) / 2;
 
 #ifdef SWITCHOPEN
@@ -1822,7 +1726,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 		outfile.push_back(1-ju);
 	}
 
-#ifdef DEBUG
+#ifdef DEBUGBACK
 	FILE *fp;
 	fopen_s(&fp, "cutout2.txt", "w");
 	for (auto i : outfile) {
@@ -1834,9 +1738,9 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 	outfile.push_back(0);
 	vector<float>gaussout;
 	GaussianSmooth(outfile,gaussout,0.2);
-	for (int i = 0; i < gaussout.size(); i++) {
+	/*for (int i = 0; i < gaussout.size(); i++) {
 	printf("back-gauss %d: %f \n", i, gaussout[i]);
-	}
+	}*/
 
 	vector<MySurCutArry>arryx;
 	MyMesh::VertexIter  v_it, v_end(mesh.vertices_end());
@@ -1886,7 +1790,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta, Surf
 
 	free(minar);
 	free(v_it_s);
-
+	delete metc;
 	return arryx;
 }
 
@@ -1935,7 +1839,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta,Surfa
 		st.x = xi*(1-(ju + st.xa*(1 - ju) + st.xb*ju)/2);
 
 		gauss.push_back(1 - ju);
-		cout << st.xa << " : " << ju << " : " << st.xb << " : " << (ju + st.xa*(1 - ju) + st.xb*ju) / 2 <<" : "<<st.x<< endl;
+		//cout << st.xa << " : " << ju << " : " << st.xb << " : " << (ju + st.xa*(1 - ju) + st.xb*ju) / 2 <<" : "<<st.x<< endl;
 		Quaternionx mtransfer(cos(lin), sin(lin)*mix[0], sin(lin)*mix[1], sin(lin)*mix[2]);
 		Quaternionx scoemet(0, coemet[0], coemet[1], coemet[2]);
 		out = mtransfer*scoemet*(mtransfer.inverse());
@@ -1955,7 +1859,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta,Surfa
 		st.x = ju;
 		st.xb = 1 - (1 - ju)*(1 - ju);
 		st.x = xi*(1-(ju + st.xa*(1-ju) + st.xb*ju)/2);
-		cout << st.xa << " : " << ju << " : " << st.xb << " : " << (ju + st.xa*(1 - ju) + st.xb*ju) / 2 << " : " << st.x << endl;
+		//cout << st.xa << " : " << ju << " : " << st.xb << " : " << (ju + st.xa*(1 - ju) + st.xb*ju) / 2 << " : " << st.x << endl;
 		gauss.push_back(1 - ju);
 
 		Quaternionx mtransfer(cos(lin), sin(lin)*mix[0], sin(lin)*mix[1], sin(lin)*mix[2]);
@@ -1969,7 +1873,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta,Surfa
 	gauss.push_back(1);
 
 	interv = (metc->ReturnIth(2) - metb->ReturnIth(2)) / WISTSECTION2; //把第二段分成5份
-	printf("interv:%d\n", interv);
+	//printf("interv:%d\n", interv);
 	coemet = metb->ReturnCoe();
 	axi = metc->ReturnCoe();
 	thert = acos(coemet.dot(axi))/2;
@@ -1990,7 +1894,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta,Surfa
 		st.x = 1 - ju;
 		st.xb = st.x*st.x;
 		st.xa = 1 - (1 - st.x)*(1 - st.x);
-		cout << st.xa << " : " << st.x << " : " << st.xb << " : " << (st.x + st.xa*st.x + st.xb*(1 - st.x)) / 2 << endl;
+		//cout << st.xa << " : " << st.x << " : " << st.xb << " : " << (st.x + st.xa*st.x + st.xb*(1 - st.x)) / 2 << endl;
 		st.x = xi*(st.x + st.xa*st.x + st.xb*(1 - st.x)) / 2;
 		gauss.push_back(1 - ju);
 
@@ -2030,9 +1934,9 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta,Surfa
 	
 	vector<float>gaussout;
 	GaussianSmooth(gauss, gaussout, 0.2);
-	for (int i = 0; i < gaussout.size(); i++) {
+	/*for (int i = 0; i < gaussout.size(); i++) {
 		printf("gauss %d: %f \n", i, gaussout[i]);
-	}
+	}*/
 	//gaussout = gauss;
 
 	vector<MySurCutArry>arryx;
@@ -2098,9 +2002,12 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *meta,Surfa
 }
 
 Vector3f SurfaceCoe::TempVector() {
-	return Vector3f(mVertexStart[0]-38.5335, mVertexStart[1]+0.4859, mVertexStart[2]-157.5532).normalized();
+	//return Vector3f(mVertexStart[0]-38.5335, mVertexStart[1]+0.4859, mVertexStart[2]-157.5532).normalized();
+	return Vector3f(mVertexStart[0] - mVertexEnd[0], mVertexStart[1]- mVertexEnd[1], mVertexStart[2] -mVertexEnd[2]).normalized();
 	//return Vector3f(38.5335 - mVertexStart[0], -0.4859 - mVertexStart[1], 157.5532 - mVertexStart[2]).normalized();
 }
+
+
 
 MyMesh::Point SurfaceCoe::FindNearestPoint(MyMesh::Point a, float &s) {
 	int k = 0, n = 0, m = 0;
