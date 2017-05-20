@@ -3,8 +3,8 @@
 // -------------------- OpenMesh
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
-#include "PointVector.h"
-
+//#include "PointVector.h"
+#include"QuaternionSpin.h"
 /*
 	在进行半边迭代求取轮廓线的时候，发现迭代需要消耗一定的内存资源，由于vs所分配的资源有限，所以进行大迭代的情况下很容易出现资源不足导致程序崩溃，所以尽量使用while或者for进行处理
 */
@@ -31,10 +31,11 @@ typedef Quaternion<float, 0> Quaternionx;
 
 //#define SWITCHOPEN 1	//使用距离作为系数
 //#define SWITCHOPEN2 1 //指定特定的系数
-//#define OUTFILEBACK 1
+#define OUTFILEBACK 1
 #define STTWISTX 1
 
 #define ITERATIONCISHU 9
+#define ITERATIONCISHUPOINT 4
 
 #define TOPOFFSET 7.5
 
@@ -100,15 +101,9 @@ public:
 
 	struct OutBottom {
 		MyMesh::VertexHandle n;
-
 		MyMesh::Point a;
 		MyMesh::Normal s;
-		//int i=0;
 		float x = 1;
-		//bool operator < (const struct OutBottom &m)const {
-		//	return x > m.x;
-		//	//return i < a.i;
-		//}
 		bool operator < (const struct OutBottom &m)const {
 			//return x > m.x;
 			return n.idx()< m.n.idx();
@@ -120,7 +115,7 @@ public:
 		float x;			//标准差向量的长度
 		int ith;			//mOutline2 系数，该点为第几个点
 		bool operator < (const struct OutBottomLine &m)const {
-			return m.x < x;
+			return m.x < x; //从大到小
 		}
 	};
 	
@@ -143,20 +138,23 @@ public:
 
 	void ShoeExpansion(vector<SurfaceCoe *> &arr);
 	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
+	void ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc);
 	void ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css); //debug
 	
-	void MyOpenMesh::ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
+	void ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
 
+	void ShoeSpin(Quaternionx a, Vector3f b); //
+
+	//give up
 	void ShoeBottomLine(vector<struct OutBottom>&arrx);
 	void FindFloorContour(vector<MyMesh::Point> &floorContour);
 
-	int TotalVertex() {
-		return mesh.n_vertices();
-	}
+
 private:
 	OpenMesh::IO::Options opt;
 	void BotIteration(set<struct OutBottom>&arr, int idx, int iver); //用来在底部进行迭代求取，不过速度太慢
-	
+	void BotIteration(set<int>&arr,int idx,int iver);
+	MyMesh::Point MyOpenMesh::GaussFilter(vector<struct OutBottom>&vm, float wind);
 	/*
 		将鞋楦分为若干个部分：
 		1 鞋楦底部；
@@ -175,7 +173,6 @@ private:
 	//vector<MyMesh::VertexHandle> mShoeBottom;		//鞋楦底板；//这个应该是需要的
 	//vector<MyMesh::VertexHandle> mWristTop;		//碗口顶部部分；
 };
-
 typedef struct MyOpenMesh::OutBottom MyOutBottom;
 typedef struct MyOpenMesh::OutNoraml MyOutNormal;
 typedef struct MyOpenMesh::OutBottomLine MyBotOutLine;
@@ -227,10 +224,14 @@ public:
 	float DistSurface(MyMesh::Point a) {
 		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
 	};
+
+	/*MyMesh::Point GiveMirrorPoint(MyMesh::Point a) {
+
+	}*/
 	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
 
 	float ReturnExtension() { return mExtension; }
-	float ReturnLength() { return mLength; }
+	float ReturnLength() { 	return mLength;}
 	Vector3f ReturnCoe() { return mCoeABC; }
 	MyMesh::Point ReturnStartPoint() { return mVertexStart; }
 
@@ -244,6 +245,11 @@ public:
 		InitMidEndPoint(mv); 
 		mid = mv[0]; 
 		end = mv[1]; 
+	}
+	void InitMidEndPoint() {
+		vector<MyMesh::Point>mv;
+		InitMidEndPoint(mv);
+		InitTwoPoints(mv[0], mv[1]);
 	}
 	
 	void InitMidTopPoint(vector<MyMesh::Point>&a);

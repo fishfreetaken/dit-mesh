@@ -468,6 +468,21 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&c
 	return;
 }
 
+void MyOpenMesh::ShoeSpin(Quaternionx af, Vector3f sf) {
+	MyMesh::Point p;
+	Quaternionx afi = af.inverse();
+	Quaternionx out;
+	MyMesh::Point mshift = MyMesh::Point(sf[0], sf[1], sf[2]);
+	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
+	{
+		p = mesh.point(*v_it);
+		Quaternionx ss(0, p[0], p[1], p[2]);
+		out = af*ss*afi;
+		p = MyMesh::Point(out.x(), out.y(), out.z())+mshift;
+		mesh.set_point(*v_it,p);
+	}
+}
+
 void MyOpenMesh::ShoeAddLength(MyMesh::Point start, SurfaceCoe*met ,float exp) {
 	MyMesh::Point p;
 	float max = abs(met->DistSurface(start));
@@ -588,6 +603,96 @@ void MyOpenMesh::ShoeExpansionWist(vector<SurfaceCoe*> &arr) {
 	}
 }
 
+void MyOpenMesh::ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc){
+	cout << "Now is shoe wist2 Expansing..." << endl;
+	MyMesh::Point p,p1,p2; float lin,s1,s2;
+	//int cis = 4;//迭代次数4次
+	float sigma = 1;
+	SurfaceCoe *smc;
+	map<int,MyMesh::Point>select;
+	float ran = 6; //mm 扩散缓冲区域
+	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
+	{
+		p = mesh.point(*v_it);
+		lin=meta->DistSurface(p);
+		if (lin >=0) {
+			continue;
+		}
+		if ((lin <0) && (lin >(0-ran))) {
+			select[v_it->idx()] = MyMesh::Point(0,0,0);
+			continue;
+		}
+		lin = metc->DistSurface(p);
+		if (lin <= -ran) {
+			continue;
+		}
+		if ((lin > -ran) && (lin <0)) {
+			select[v_it->idx()] = MyMesh::Point(0, 0, 0);
+			continue;
+		}
+		smc = metb->DistSurface(p) > 0 ? meta : metc;
+		p1 = metb->FindNearestPoint(p, s1);
+		p2 = smc->FindNearestPoint(p, s2);
+		select[v_it->idx()] = p1*(s2 / (s1 + s2));// + p2*(s1 / (s1 + s2));
+	}
+	map<int, MyMesh::Point>::iterator it(select.begin()),it_s;
+	for (; it != select.end(); it++) {
+		set<int> cvm;
+		BotIteration(cvm, it->first, 0);
+		vector<MyOutBottom> smv;
+		for (auto i : cvm) {
+			it_s=select.find(i);
+			MyOutBottom git;
+			if (it_s == select.end()) {
+				git.a = mesh.point(mesh.vertex_handle(i));
+				git.s = MyMesh::Point(0,0,0);
+				smv.push_back(git);
+				continue;
+			}
+			git.a= mesh.point(mesh.vertex_handle(i));
+			git.s = select[i];
+			smv.push_back(git);
+		}
+		it->second = GaussFilter(smv, sigma);
+	}
+	for (it = select.begin(); it != select.end(); it++) {
+		p = mesh.point(mesh.vertex_handle(it->first))+it->second;
+		mesh.set_point(mesh.vertex_handle(it->first),p);
+	}
+}
+
+MyMesh::Point MyOpenMesh::GaussFilter(vector<MyOutBottom>&pGray,float sigma) {
+	int sz = pGray.size();
+	float dWeightSum=0;//滤波系数总和  
+
+	MyMesh::Normal dDotMul(0, 0, 0);//高斯系数与图像数据的点乘  
+	float dDis, dValue;
+	for (int i = 0; i<sz; i++)
+	{
+		dDis = (pGray[0].a - pGray[i].a).norm();
+		dValue = exp(-(1 / 2)*dDis*dDis / (sigma*sigma)) / (sqrt(2 * 3.1415926)*sigma);
+
+		dDotMul += dValue*pGray[i].s;
+		dWeightSum += dValue;
+	}
+	return dDotMul / dWeightSum;
+}
+
+void MyOpenMesh::BotIteration(set<int>&arr, int idx, int iver) {
+	if (iver > ITERATIONCISHUPOINT) {
+		return;
+	}
+	iver++;
+	MyMesh::VertexVertexIter vv_it = mesh.vv_iter(mesh.vertex_handle(idx));
+	for (; vv_it.is_valid(); ++vv_it)
+	{
+		BotIteration(arr, vv_it->idx(), iver);
+
+		arr.insert(vv_it->idx());
+	}
+	return;
+}
+
 SurfaceCoe::SurfaceCoe(MyMesh::VertexHandle *vertex, MyMesh &b):
 	mesh(b)
 {
@@ -702,12 +807,6 @@ bool SurfaceCoe::Init(int cmd){//(MyMesh::VertexHandle *vertex,MyMesh &mmesh){
 			}
 		}
 	}
-	/*if (ini) {
-		if (cmd) {
-			OutlineRefine();
-		}
-		CoquerMidEnd();
-	}*/
 	if (ini) {
 		switch (cmd) {
 			case 1:
@@ -723,13 +822,13 @@ bool SurfaceCoe::Init(int cmd){//(MyMesh::VertexHandle *vertex,MyMesh &mmesh){
 				break;
 		}
 	}
-	
 	return ini;
 }
 
 void SurfaceCoe::CoquerMidEnd() {
 	float ins, mid = MAXIMUMX, end = MAXIMUMX;
 	MyMesh::Point k = mVertexStart;
+	mLength = 0;
 	for (int i = 1; i < mOutline2.size(); i++) {
 		mLength += (mOutline2[i].a - k).norm();
 		mOutline2[i].d = mLength;
@@ -822,7 +921,7 @@ float SurfaceCoe::AllocateXCoe(float tar) {
 		mOutline2[i].x = output[i + mOutline2.size() - mIth[1]];
 	}
 	
-	mExtension = tar > 0 ? -tar : tar;
+	mExtension = -tar;
 	return OutlineExpansion();
 }
 
@@ -947,7 +1046,7 @@ float SurfaceCoe::AllocateXCoe(SurfacePure*met) {//(SurfaceCoe*met,MyMesh::Point
 
 float SurfaceCoe::OutlineExpansion() {  //(float tar) //这个是取半值
 	vector<MyOutNormal> bso = mOutline2;
-	float sout = mExtension * 20;
+	float sout = mExtension * 10;
 	float s = 0, li = sout/2, pp = 0;
 	float aa = 0, bb = 1, cc = 0.5;
 	while (abs(abs(s - mLength) - abs(mExtension)) > ADDDIFFERENCE) {
@@ -956,7 +1055,7 @@ float SurfaceCoe::OutlineExpansion() {  //(float tar) //这个是取半值
 			bso[j].a += bso[j].n*bso[j].x*li;
 		}
 		s = TotalLengh(bso);
-		pp = abs(mExtension) / (s - mLength);
+		pp = -mExtension/(s - mLength);
 		if ((pp > 1)||(pp<0)) {
 			aa = cc;
 			cc = cc+(bb - cc) / 2;
@@ -977,6 +1076,13 @@ float SurfaceCoe::OutlineExpansion() {  //(float tar) //这个是取半值
 		//mOutline2[j].a += mOutline2[j].f;//其实都是未移动的点
 		mOutline2[j].m = mOutline2[j].a + mOutline2[j].f;//用于输出调试
 	}
+	MyMesh::Point ac=mOutline2[0].m;
+	float lii = 0;
+	for (auto i : mOutline2) {
+		lii+=(ac - i.m).norm();
+		ac = i.m;
+	}
+	mLength = lii;
 	mExtensionli = li;
 	return li;
 }

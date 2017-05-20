@@ -1,10 +1,16 @@
 #include "stdafx.h"
 #include "QuaternionSpin.h"
 
-
-QuaternionSpin::QuaternionSpin()
+QuaternionSpin::QuaternionSpin(Vector3f a, Vector3f b,Vector3f o, vector<Vector3f>&c, float heel) :
+	mOutline(c),
+	mHeelHight(heel)
 {
-	morigin = Vector3f(0, 0, 0);
+	mXZTransfer = Quaternionx::FromTwoVectors(a, b);
+	mXZTransferi = mXZTransfer.inverse();
+	//macctransfer.push_back(mXZTransfer);
+	mOrigen = Vector3f(0, 0 ,mHeelHight);
+
+	mVShift = mOrigen - ComputeQuaternion(o);//旋转后的偏移量
 }
 
 QuaternionSpin::~QuaternionSpin()
@@ -20,28 +26,15 @@ Vector3f QuaternionSpin::VectorCompute(Vector3f a, Vector3f b, Vector3f c) {
 	Vector3f ab, ac;
 	ab = b - a;
 	ac = c - a;
-
 	ab = ac.cross(ab);
-	//float norm;//不一定单位化  ab.norm()
-	//norm = sqrt(ab.transpose()*ab);
-	//ab = ab / norm;
 	return ab;
-}
-
-/*
-	从a转到b
-*/
-void QuaternionSpin::SetQuaternionFromTwo(Vector3f a,Vector3f b) {
-	mtransfer= Quaternionx::FromTwoVectors(a, b);
-	mtransferi = mtransfer.inverse();
-	macctransfer.push_back(mtransfer);
 }
 
 Vector3f QuaternionSpin::ComputeQuaternion(Vector3f po){
 	Quaternionx  out; //旋转结果坐标
 	Quaternionx p(0, po[0], po[1], po[2]);//输入坐标
 
-	out = mtransfer*p*mtransferi;
+	out = mXZTransfer*p*mXZTransferi;
 	return Vector3f(out.x(),out.y(),out.z()); //return xyz point
 }
 
@@ -57,66 +50,120 @@ void QuaternionSpin::TransferSpin(vector<Vector3f>*in,vector<Vector3f>*out,Vecto
 }
 
 /*
-	1:将旋转过后的坐标与原坐标相减
-	0:将传入的向量直接赋值给mvshift
+	首先旋转到XOZ平面
+	然后进行位移到origin点
+	然后接着旋转使得底板落到x轴上
 */
-void QuaternionSpin::SetCenterShift(Vector3f a,int i) {
-	if (i) {
-		mvshift = morigin - ComputeQuaternion(a);
+int QuaternionSpin::TransferSpin() { 
+	Quaternionx  out; //旋转结果坐标  
+	int sz = mOutline.size();
+	Vector3f po;
+	for (int i = 0; i < sz; i++) {
+		po = mOutline[i];
+		Quaternionx p(0, po[0], po[1], po[2]);//输入坐标
+		out = mXZTransfer*p*mXZTransferi;
+		mOutline[i] = Vector3f(out.x(), out.y(), out.z())+mVShift;//输出旋转后的结果
 	}
-	else {
-		mvshift = a;
-	}
+	float li = 0; int ini=0;
+	struct mvc {
+		int x;
+		int ith;
+		Quaternionx tf;
+		bool operator < (const struct mvc &m)const {
+			return m.x > x;//这个是从大到小
+		}
+	};
+	set<struct mvc> mis; 
 	
-}
-
-bool QuaternionSpin::InCircule(Vector3f a,vector<Vector3f> *xoz) {
-	float l = a.norm();
-	int count;
-	if ( l >= morigin[2]) {
-		Vector3f m(sqrt((l - mheelhight)*(l+mheelhight)), 0, -mheelhight);
-		mtransfer = Quaternionx::FromTwoVectors(a,m);//(0,1,0)
-		mtransferi = mtransfer.inverse();
-		for (auto i : *xoz){
-			if (!WetherUpXZ(ComputeQuaternion(i),&count)) {
-				return false;
+	for (int i = 0; i < sz; i++) {
+		vector<Vector3f>ft=mOutline;
+		po = mOutline[i];
+		li = (po - mOrigen).norm();
+		if (li < mHeelHight) {
+			continue;
+		}
+		li = sqrt((li - mHeelHight)*(li + mHeelHight));
+		Quaternionx transfer = Quaternionx::FromTwoVectors((po-mOrigen),Vector3f(li,0,-mHeelHight));//(0,1,0)
+		Quaternionx transferi = transfer.inverse();
+		/*Quaternionx sms(0,mOutline[i][0],mOutline[i][1],mOutline[i][2]);
+		out = transfer*sms*transferi;*/
+		int cout = 0;
+		for (int j = 0; j < sz; j++) {
+			Quaternionx mm(0, ft[j][0],ft[j][1],ft[j][2]);
+			out = transfer*mm*transferi;
+			if (out.z() < 0) {  //-1:1322 -0.5:1330
+				cout++;
+				//break;
 			}
+			//ini++;
 		}
-		if (count) {
-			macctransfer.push_back(mtransfer);
-			return true;
-		}
+		struct mvc git;
+		git.ith = i;
+		git.x = cout;
+		git.tf = transfer;
+		mis.insert(git);
+		//if (ini) {
+		//	mXTransfer = transfer;
+		//	mXTransferi = transferi;
+		//	//cout <<" Bottomest Point is :"<<mOutline[i]<< endl;  //for debug;
+		//	mTransfer = mXTransfer*mXZTransfer;
+		//	return 1;
+		//}
 	}
-	return false;
+	set<struct mvc>::iterator it(mis.begin());
+	mXTransfer = it->tf;
+	mXTransferi = mXTransfer.inverse();
+	mTransfer = mXTransfer*mXZTransfer;
+	return 1;
 }
+//
+//bool QuaternionSpin::InCircule(Vector3f a,vector<Vector3f> *xoz) {
+//	float l = a.norm();
+//	int count;
+//	if ( l >= mOrigen[2]) {
+//		Vector3f m(sqrt((l - mHeelHight)*(l+ mHeelHight)), 0, -mHeelHight);
+//		mtransfer = Quaternionx::FromTwoVectors(a,m);//(0,1,0)
+//		mtransferi = mtransfer.inverse();
+//		for (auto i : *xoz){
+//			if (!WetherUpXZ(ComputeQuaternion(i),&count)) {
+//				return false;
+//			}
+//		}
+//		if (count) {
+//			macctransfer.push_back(mtransfer);
+//			return true;
+//		}
+//	}
+//	return false;
+//}
+//
+//bool QuaternionSpin::WetherUpXZ(Vector3f cc,int *m) {
+//	/*if (cc.z() <-(XACEPPTRANGE+mheelhight)) {
+//		return false;
+//	}
+//	if ((cc.z() < (XACEPPTRANGE-mheelhight)) && (cc.z() > 0)) {
+//		(*m)++;
+//	}*/
+//	//两个容差线都差不多，肉眼几乎不可辨别，只是与outline相差一定角度
+//	if (cc.z() <-( mheelhight)) {
+//		return false;
+//	}
+//	if ((cc.z() < (XACEPPTRANGE - mheelhight)) && (cc.z() > 0)) {
+//		(*m)++;
+//	}
+//	return true;
+//}
 
-bool QuaternionSpin::WetherUpXZ(Vector3f cc,int *m) {
-	/*if (cc.z() <-(XACEPPTRANGE+mheelhight)) {
-		return false;
-	}
-	if ((cc.z() < (XACEPPTRANGE-mheelhight)) && (cc.z() > 0)) {
-		(*m)++;
-	}*/
-	//两个容差线都差不多，肉眼几乎不可辨别，只是与outline相差一定角度
-	if (cc.z() <-( mheelhight)) {
-		return false;
-	}
-	if ((cc.z() < (XACEPPTRANGE - mheelhight)) && (cc.z() > 0)) {
-		(*m)++;
-	}
-	return true;
-}
-
-bool QuaternionSpin::FindPoint(vector<Vector3f> *xoz) {
-	cout << "Now is fnding Point in range..." << endl;
-	for (auto i : *xoz) {
-		if (InCircule(i,xoz )) {
-			cout << i << endl;
-			cout << ComputeQuaternion(i) << endl;
-			mplowest = ComputeQuaternion(i);
-			return true;
-		}
-	}
-	return false;
-}
+//bool QuaternionSpin::FindPoint(vector<Vector3f> *xoz) {
+//	cout << "Now is fnding Point in range..." << endl;
+//	for (auto i : *xoz) {
+//		if (InCircule(i,xoz )) {
+//			cout << i << endl;
+//			cout << ComputeQuaternion(i) << endl;
+//			mplowest = ComputeQuaternion(i);
+//			return true;
+//		}
+//	}
+//	return false;
+//}
 

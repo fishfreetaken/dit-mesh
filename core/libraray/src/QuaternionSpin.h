@@ -1,5 +1,6 @@
 #pragma once
 #include "PointVector.h"
+//#include "ManageObj.h"
 //#include <Eigen/Geometry>
 typedef Quaternion<float, 0> Quaternionx;
 
@@ -14,41 +15,38 @@ typedef Quaternion<float, 0> Quaternionx;
 class QuaternionSpin
 {
 public:
-	QuaternionSpin();
+	//QuaternionSpin(Vector4f a); //由旋转轴以及旋转角度进行构造四元数
+	//QuaternionSpin(float d, float a, float b, float c);
+	QuaternionSpin(Vector3f a, Vector3f b,Vector3f o, vector<Vector3f>&c, float heel);
 	~QuaternionSpin();
+
+	int QuaternionSpin::TransferSpin();
 
 	static Vector3f VectorCompute(Vector3f a, Vector3f b, Vector3f c);
 	static void ShowQuaternion(Quaternionx a);
 	Vector3f ComputeQuaternion(Vector3f po);
 
-	void SetCenterShift( Vector3f a ,int c);
-	void SetTransfer(Quaternionx a) { mtransfer = a; };
-	void SetHeel(float a) { mheelhight = a; };
-	void SetQuaternionFromTwo(Vector3f a, Vector3f b);
 
-	bool FindPoint(vector<Vector3f> *xoz);
-
-	Vector3f GiveShift() { return mvshift; };
-
+	Vector3f ReturnShift() { return mVShift; };
+	Quaternionx ReturnXZTrans() { return mXZTransfer; }
+	Quaternionx ReturnXtrans() { return mXTransfer; }
+	Quaternionx ReturnQuatFuse() { return mTransfer; }
+	
 	void TransferSpin(vector<Vector3f>*in, vector<Vector3f>*out, Vector3f shift);
 
 private:
-	vector<Vector3f>*mpin, *mpout;
+	vector<Vector3f> &mOutline; //input
 
-	vector<Quaternionx> macctransfer;
-
-	Quaternionx mtransfer,mtransferi; //转换四元数及其逆
+	Quaternionx mXZTransfer, mXZTransferi; //xoz平面转换四元数及其逆
+	Vector3f mVShift, mOrigen;
+	Quaternionx mXTransfer, mXTransferi;
+	Quaternionx mTransfer;
 	
-	Vector3f morigin;//morigint zero;
-	Vector3f mvshift;//向原点的偏移量
+	//Vector3f morigin;//morigint zero;
+	//Vector3f mvshift;//向原点的偏移量
 
-	Vector3f mplowest;//xoz摆正后的触地点
+	//Vector3f mplowest;//xoz摆正后的触地点
 
-	float mheelhight;
-
-	bool InCircule(Vector3f a, vector<Vector3f> *xoz);
-	bool WetherUpXZ(Vector3f cc, int *m);
-	
-	
+	float mHeelHight;
 };
 
