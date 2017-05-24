@@ -281,10 +281,24 @@ void ManageObj::OutFilePointAna(vector<MyOutBottom>&vp, const char * outfilename
 	//	fprintf(fp, "total :%f ~~~ %f : %d  %f%\n",i->Rsfa(),i->Rsfb(),i->Rs(),(i->Rs()*100/vp.size()));
 	//}
 	//fprintf(fp, "# end of file\n");
+	vector<MyMesh::Point>mv;
 	for (auto i : vp) {
-		fprintf(fp, "%f %f %f   %f\n",i.s[0],i.s[1],i.s[2],i.s.norm());
+		fprintf(fp, " %f   %f %f %f    %f %f %f\n", i.s.norm(),i.s[0],i.s[1],i.s[2],i.a[0],i.a[1],i.a[2]);
+		
+#ifdef SHOEBOTTOMLL
+		if (i.s.norm() >= 1.3) { //一般分析得到，大于3的情况下，特别不连续，小于1的情况下比如0.97取得效果并不好，跟1没有什么差别，反倒是跟递归深度有关，递归深度大的话比较完整一些
+			mv.push_back(i.a);
+		}
+#else
+		if (i.s.norm() >= 10) { //一般分析得到，大于3的情况下，特别不连续，小于1的情况下比如0.97取得效果并不好，跟1没有什么差别，反倒是跟递归深度有关，递归深度大的话比较完整一些
+			mv.push_back(i.a);
+		}
+#endif // DEBUG
 	}
+	
 	fclose(fp);
+
+	ManageObj::OutFilePointObj(mv,"bottom-5-13-V.obj");
 }
 
 void ManageObj::OutFilePointObj(vector<Vector4f>* vp, const char * outfilenam) {

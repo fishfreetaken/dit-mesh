@@ -35,10 +35,11 @@ typedef Quaternion<float, 0> Quaternionx;
 #define STTWISTX 1
 
 #define ITERATIONCISHU 9
-#define ITERATIONCISHUPOINT 4
+#define ITERATIONCISHUPOINT 3//腰围跟背围的高斯滤波邻域范围 4
 
 #define TOPOFFSET 7.5
 
+#define DIFWINDOW 7 //给出求方差的窗口大小
 //#define SHOEBOTTOMLL 2 //在底部提取的过程中，用来区别使用set还是vector,vector可能会快很多
 
 class SurfacePure {
@@ -91,10 +92,13 @@ public:
 	struct OutNoraml {  //很重要。两个class都用到了
 		MyMesh::Point a; //其实只要增量就可以了，这个可以在以后省掉，这个用来调试看结果的！,扩散后的坐标
 		MyMesh::Normal n; //扩散的法向量
+		//MyMesh::Normal nf; //记录该点的原始法向量
+
 		float x=0;  //扩增系数
 		float d=0;	//记录起始点到该点的距离
 		MyMesh::Point f=MyMesh::Point(0,0,0); //记录相对于原来的递增量
 		MyMesh::Point m= MyMesh::Point(0, 0, 0); //记录移动后坐标
+		
 		//MyMesh::Point pro = MyMesh::Point(0, 0, 0); //记录增长的比率
 		//float k = 0;//扩散增量
 	};
@@ -134,11 +138,11 @@ public:
 	void FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, MyMesh::VertexHandle *p);
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
-	void InitTriPoint(MyMesh::VertexHandle *p);
-
 	void ShoeExpansion(vector<SurfaceCoe *> &arr);
+
 	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
 	void ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc);
+	void ShoeExpansionWist2(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc);
 	void ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css); //debug
 	
 	void ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
@@ -200,8 +204,7 @@ public:
 
 	//void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
 	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi);   //给出沿横切线的分割点；
-	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, SurfaceCoe *metc);//腰围增加给出横切面
-	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *meta, SurfaceCoe *metb, MyOpenMesh &ios);
+	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *a,float h);   //给出沿横切线的分割点；自动给出中轴线的点
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
 	SurfaceCoe* FindWaistLine(SurfaceCoe *met);
@@ -211,6 +214,7 @@ public:
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
+	bool OutlineEigenM(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigen(vector<Vector4f> *a);
 	bool OutlineEigenf(const char *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
@@ -229,6 +233,7 @@ public:
 
 	}*/
 	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
+	float FindNearestPointF(MyMesh::Point a, float &s);
 
 	float ReturnExtension() { return mExtension; }
 	float ReturnLength() { 	return mLength;}
@@ -251,8 +256,9 @@ public:
 		InitMidEndPoint(mv);
 		InitTwoPoints(mv[0], mv[1]);
 	}
-	
-	void InitMidTopPoint(vector<MyMesh::Point>&a);
+
+	int InitMidTopPoint(vector<MyMesh::Point>&a);
+	void InitMidTopPoint(vector<MyMesh::Point>&fw, float x);
 private:
 	MyMesh &mesh;
 
@@ -265,7 +271,7 @@ private:
 
 	float mX = 1; //需要进行增放的比例系数（>1） 如果不变 保持为1，增大则>1 缩小则<1;
 	int mIth[3] = { 0,0,0 };  //start: 0,  mid  end  (metara 保留，不太必要) 第三个用来保存在sfc主横截轮廓的起始点位置
-	float mLen[3] = { 0,0,0 };
+	float mLen[3] = { 0,0,0 }; //start-mid  mid-end  end-start distance
 	float mLength = 0;
 	float mExtension = 0;
 	float mExtensionli = 0; //for debug;
