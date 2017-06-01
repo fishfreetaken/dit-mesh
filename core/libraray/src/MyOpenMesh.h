@@ -1,6 +1,7 @@
 #pragma once
 
 // -------------------- OpenMesh
+//#include "OpenMesh/Core/IO/MeshIO.hh"
 #include <OpenMesh/Core/IO/MeshIO.hh>
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
 //#include "PointVector.h"
@@ -42,7 +43,8 @@ typedef Quaternion<float, 0> Quaternionx;
 #define DIFWINDOW 7 //给出求方差的窗口大小
 //#define SHOEBOTTOMLL 2 //在底部提取的过程中，用来区别使用set还是vector,vector可能会快很多
 
-class SurfacePure {
+class SurfacePure 
+{
 public:
 	SurfacePure(Vector3f a, Vector3f b, Vector3f c) :
 		start(a),
@@ -58,14 +60,19 @@ public:
 		end = Vector3f(c[0], c[1], c[2]);
 		init();
 	}
-	void init() {
+	void init() 
+	{
 		Vector3f ab = start - mid;
 		ab = (start - end).cross(ab);
 		mCoeABC = Vector3f(ab[0], ab[1], ab[2]);
 
 		float d = ab.dot(Vector3f(0, 0, 0) - start) / mCoeABC.norm();
 		mCoeABC.normalize();
-		mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+		//mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+		mCoe.data()[0] = mCoeABC[0];
+		mCoe.data()[1] = mCoeABC[1];
+		mCoe.data()[2] = mCoeABC[2];
+		mCoe.data()[3] = d;
 	}
 
 	float DistSurface(MyMesh::Point a) {
@@ -125,8 +132,8 @@ public:
 	
 	MyMesh  mesh;
 
-	void ReadStlfile(char * argg);
-	void WriteStlfile(char *argg,int i);
+	void ReadStlfile(const char * argg);
+	void WriteStlfile(const char *argg,int i);
 
 	void MoveVertex(float len); //沿着法向量移动指定长度 for test
 	void ReleaseVertexNormals();
@@ -147,7 +154,7 @@ public:
 	
 	void ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);
 
-	void ShoeSpin(Quaternionx a, Vector3f b); //
+	void ShoeSpin(Quaternionx &a, Vector3f b); //
 
 	//give up
 	void ShoeBottomLine(vector<struct OutBottom>&arrx);
@@ -181,7 +188,8 @@ typedef struct MyOpenMesh::OutBottom MyOutBottom;
 typedef struct MyOpenMesh::OutNoraml MyOutNormal;
 typedef struct MyOpenMesh::OutBottomLine MyBotOutLine;
 
-class SurfaceCoe {
+class SurfaceCoe 
+{
 public:
 	SurfaceCoe(MyMesh::VertexHandle *a, MyMesh &b);					//三点确定一个平面
 	SurfaceCoe(MyMesh::Point mid, MyMesh::Point end, MyMesh::VertexHandle c, MyMesh &d);  //三个点确定一个平面
@@ -189,10 +197,15 @@ public:
 	SurfaceCoe(MyMesh::VertexHandle start, MyMesh::Point end, MyMesh &d);	//三点确定一个平面，首先给出两个点，另一个点可变，给除初始位置点和end点
 	~SurfaceCoe() {};
 
-	struct CutArry {
+	struct CutArry 
+	{
 		MyMesh::VertexHandle a;
-		float x = 1;
+		float x;// = 1;
 		Vector3f n; //这个可以用来表示该界面的法向向量
+		CutArry()
+		{
+			x = 1;
+		}
 	};
 
 	bool Init(int cmd);
@@ -218,6 +231,40 @@ public:
 	bool OutlineEigen(vector<Vector4f> *a);
 	bool OutlineEigenf(const char *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
+	void PointExchange(MyMesh::Point a){
+		if (mVertexStart[1] > 0) {
+			mVertexMid = mVertexStart;
+			mVertexEnd = mVertexEnd;
+		}
+		else {
+			mVertexMid = mVertexEnd;
+			mVertexEnd = mVertexStart;
+		}
+		if (mVertexStart[1] == 0) {
+			cout << "Point Exchange Error!" << endl;
+		}
+		MyMesh::VertexIter  v_it, v_end(mesh.vertices_end());
+		MyMesh::VertexIter	v_it_s;
+		float min = MAXIMUMX;
+		float lin;
+		MyMesh::Point pp;
+		for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
+		{
+			pp = mesh.point(*v_it);
+			lin = (pp - a).norm();
+			if (lin < min) {
+				min = lin;
+				v_it_s = v_it;
+			}
+		}
+		mVertexStart = mesh.point(*v_it_s);
+		mHandleBegin = mesh.vertex_handle(v_it_s->idx());
+		Init(0);
+	}
+	void GiveMidEndPoint(MyMesh::Point mid, MyMesh::Point end) {
+		mVertexMid = mid;
+		mVertexEnd = end;
+	}
 	
 	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
 	float AllocateXCoe();// (SurfaceCoe*met, MyMesh::Point a, MyMesh::Point b);			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
@@ -245,6 +292,7 @@ public:
 	MyMesh::VertexHandle ReturnVertexHandle() { return mHandleBegin; }
 	
 	void InitMidEndPoint(vector<MyMesh::Point>&a);
+	
 	void InitMidEndPoint(MyMesh::Point&mid, MyMesh::Point&end) { 
 		vector<MyMesh::Point>mv; 
 		InitMidEndPoint(mv); 
@@ -256,6 +304,7 @@ public:
 		InitMidEndPoint(mv);
 		InitTwoPoints(mv[0], mv[1]);
 	}
+
 
 	int InitMidTopPoint(vector<MyMesh::Point>&a);
 	void InitMidTopPoint(vector<MyMesh::Point>&fw, float x);
@@ -270,13 +319,13 @@ private:
 	MyMesh::VertexHandle mHandleBegin;
 
 	float mX = 1; //需要进行增放的比例系数（>1） 如果不变 保持为1，增大则>1 缩小则<1;
-	int mIth[3] = { 0,0,0 };  //start: 0,  mid  end  (metara 保留，不太必要) 第三个用来保存在sfc主横截轮廓的起始点位置
-	float mLen[3] = { 0,0,0 }; //start-mid  mid-end  end-start distance
+	int mIth[3];// = { 0 };  //start: 0,  mid  end  (metara 保留，不太必要) 第三个用来保存在sfc主横截轮廓的起始点位置
+	float mLen[3];// = { 0 }; //start-mid  mid-end  end-start distance
 	float mLength = 0;
 	float mExtension = 0;
 	float mExtensionli = 0; //for debug;
 
-	vector<MyOutNormal> mOutline2;
+	std::vector<MyOutNormal> mOutline2;
 	void AddOutlinePoint(MyMesh::VertexHandle a, MyMesh::VertexHandle b);//添加outline主体的点
 
 	void OutlineRefine();		//平滑outline

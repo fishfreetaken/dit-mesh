@@ -39,7 +39,7 @@ Vector3f QuaternionSpin::ComputeQuaternion(Vector3f po){
 }
 
 /*for debug*/
-void QuaternionSpin::ShowQuaternion(Quaternionx a){
+void QuaternionSpin::ShowQuaternion(Quaternionx &a){
 	printf("w:%f x:%f y:%f x:%f\n", a.w(), a.x(), a.y(), a.z());
 }
 
@@ -65,16 +65,20 @@ int QuaternionSpin::TransferSpin() {
 		mOutline[i] = Vector3f(out.x(), out.y(), out.z())+mVShift;//输出旋转后的结果
 	}
 	float li = 0; int ini=0;
-	struct mvc {
-		int x;
-		int ith;
-		Quaternionx tf;
-		bool operator < (const struct mvc &m)const {
-			return m.x > x;//这个是从大到小
-		}
-	};
-	set<struct mvc> mis; 
+	//struct mvc {
+	//	int x;
+	//	int ith;
+	//	Quaternionx tf;
+	//	bool operator < (const struct mvc &m)const {
+	//		return m.x > x;//这个是从大到小
+	//	}
+	//};
+	//set<struct mvc> mis; 
 	
+	int bestone = 999999;
+	Quaternionx tf;
+	int iith;
+
 	for (int i = 0; i < sz; i++) {
 		vector<Vector3f>ft=mOutline;
 		po = mOutline[i];
@@ -87,32 +91,32 @@ int QuaternionSpin::TransferSpin() {
 		Quaternionx transferi = transfer.inverse();
 		/*Quaternionx sms(0,mOutline[i][0],mOutline[i][1],mOutline[i][2]);
 		out = transfer*sms*transferi;*/
-		int cout = 0;
+		int icout = 0;
 		for (int j = 0; j < sz; j++) {
 			Quaternionx mm(0, ft[j][0],ft[j][1],ft[j][2]);
 			out = transfer*mm*transferi;
 			if (out.z() < 0) {  //-1:1322 -0.5:1330
-				cout++;
-				//break;
+				icout++;
 			}
-			//ini++;
 		}
-		struct mvc git;
+		if (icout < bestone) {
+			bestone = icout;
+			tf = transfer;
+			iith = i;
+		}
+
+		/*struct mvc git;
 		git.ith = i;
-		git.x = cout;
+		git.x = icout;
 		git.tf = transfer;
-		mis.insert(git);
-		//if (ini) {
-		//	mXTransfer = transfer;
-		//	mXTransferi = transferi;
-		//	//cout <<" Bottomest Point is :"<<mOutline[i]<< endl;  //for debug;
-		//	mTransfer = mXTransfer*mXZTransfer;
-		//	return 1;
-		//}
+		mis.insert(git);*/
 	}
-	set<struct mvc>::iterator it(mis.begin());
+	/*set<struct mvc>::iterator it(mis.begin());
 	mXTransfer = it->tf;
 	mXTransferi = mXTransfer.inverse();
+	mTransfer = mXTransfer*mXZTransfer;*/
+	mXTransfer = tf;
+	mXTransferi= mXTransfer.inverse();
 	mTransfer = mXTransfer*mXZTransfer;
 	return 1;
 }

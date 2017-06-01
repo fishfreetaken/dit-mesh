@@ -23,7 +23,7 @@ public:
 	int QuaternionSpin::TransferSpin();
 
 	static Vector3f VectorCompute(Vector3f a, Vector3f b, Vector3f c);
-	static void ShowQuaternion(Quaternionx a);
+	static void ShowQuaternion(Quaternionx &a);
 	Vector3f ComputeQuaternion(Vector3f po);
 
 

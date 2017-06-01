@@ -1,11 +1,19 @@
 #include "stdafx.h"
 #include "MyOpenMesh.h"
 
+struct CutArry2
+{
+	MyMesh::Point a;
+	float x = 1;
+	Vector3f n;
+};
+
 MyOpenMesh::MyOpenMesh(float a)
 {
 }
 
-void MyOpenMesh::ReadStlfile(char * argg) {
+void MyOpenMesh::ReadStlfile(const char * argg) 
+{
 	// read mesh from stdin
 	if (!OpenMesh::IO::read_mesh(mesh, argg, opt))
 	{
@@ -32,7 +40,7 @@ void MyOpenMesh::ReadStlfile(char * argg) {
 	}
 }
 
-void MyOpenMesh::WriteStlfile(char *argg,int i){
+void MyOpenMesh::WriteStlfile(const char *argg,int i){
 	if (!OpenMesh::IO::write_mesh(mesh, argg ,i)) //0 ascii 1 binary
 	{
 		std::cerr << "Error: cannot write mesh to " << argg << std::endl;
@@ -45,7 +53,7 @@ void MyOpenMesh::FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, 
 	float min[3] = { 9999,9999,9999 };
 	float lin;
 	MyMesh::Point pp;
-	cout << "Finding Tri Nearest Vertex..." << endl;
+	//cout << "Finding Tri Nearest Vertex..." << endl;
 	for (v_it = mesh.vertices_begin(); v_it != v_end; ++v_it)
 	{
 		pp = mesh.point(*v_it);
@@ -396,7 +404,7 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&c
 	return;
 }
 
-void MyOpenMesh::ShoeSpin(Quaternionx af, Vector3f sf) {
+void MyOpenMesh::ShoeSpin(Quaternionx &af, Vector3f sf) {
 	MyMesh::Point p;
 	Quaternionx afi = af.inverse();
 	Quaternionx out;
@@ -430,7 +438,7 @@ void MyOpenMesh::ShoeAddLength(MyMesh::Point start, SurfaceCoe*met ,float exp) {
 void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx) { //这个需要考虑变的方向
 
 	vector<SurfaceCoe*>&arr=arrx;
-	cout << "Now is shoe Expansing..." << endl;
+	cout << "正在对掌围进行变形..." << endl;
 	MyMesh::Point p, p1, p2;// n为递增向量
 	float s1, s2;
 	MyMesh::Normal nf;
@@ -503,7 +511,7 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx) { //这个需要考虑变的方
 }
 
 void MyOpenMesh::ShoeExpansionWist(vector<SurfaceCoe*> &arr) {
-	cout << "Now is shoe wist Expansing..." << endl;
+	//cout << "Now is shoe wist Expansing..." << endl;
 	MyMesh::Point p, p1, p2;// n为递增向量
 	float s1, s2;
 
@@ -538,7 +546,7 @@ void MyOpenMesh::ShoeExpansionWist(vector<SurfaceCoe*> &arr) {
 }
 
 void MyOpenMesh::ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc){
-	cout << "Now is shoe wist2 Expansing..." << endl;
+	//cout << "Now is shoe wist2 Expansing..." << endl;
 	MyMesh::Point p,p1,p2; float lin,s1,s2;
 	//int cis = 4;//迭代次数4次
 	float sigma = 1;
@@ -596,7 +604,7 @@ void MyOpenMesh::ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*
 }
 
 void MyOpenMesh::ShoeExpansionWist2(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc) {
-	cout << "Now is shoe wist2 Expansing..." << endl;
+	//cout << "Now is shoe wist2 Expansing..." << endl;
 	MyMesh::Point p, p1, p2; float lin, s1, s2;
 	//int cis = 4;//迭代次数4次
 	float sigma = 1;
@@ -717,7 +725,11 @@ SurfaceCoe::SurfaceCoe(Vector3f bf, MyMesh::VertexHandle df, float x, MyMesh &b)
 {
 	mVertexStart = mesh.point(df);
 	float d = mCoeABC.dot(Vector3f((0 - mVertexStart[0]), (0 - mVertexStart[1]), (0 - mVertexStart[2])));
-	mCoe= Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+	mCoe.data()[0] = mCoeABC[0];
+	mCoe.data()[1] = mCoeABC[1];
+	mCoe.data()[2] = mCoeABC[2];
+	mCoe.data()[3] = d;
+	//mCoe= Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
 }
 SurfaceCoe::SurfaceCoe(MyMesh::Point mid, MyMesh::Point end, MyMesh::VertexHandle c, MyMesh &d) :
 	mesh(d),
@@ -768,10 +780,19 @@ bool SurfaceCoe::Init(int cmd){//(MyMesh::VertexHandle *vertex,MyMesh &mmesh){
 	Vector3f ab = a - b;
 	ab = (a-c).cross(ab);
 	mCoeABC = Vector3f(ab[0], ab[1], ab[2]);
+
+	mCoeABC.data()[0] = ab[0];
+	mCoeABC.data()[1] = ab[1];
+	mCoeABC.data()[2] = ab[2];
 	
 	float d = ab.dot(Vector3f(0, 0, 0) - a)/ mCoeABC.norm();
 	mCoeABC.normalize();
-	mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+	//mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+
+	mCoe.data()[0] = mCoeABC[0];
+	mCoe.data()[1] = mCoeABC[1];
+	mCoe.data()[2] = mCoeABC[2];
+	mCoe.data()[3] = d;
 	//float d = ab.dot(Vector3f(0, 0, 0) - a);
 	//mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
 
@@ -1591,36 +1612,39 @@ bool SurfaceCoe::OutlineEigen(vector<Vector4f> *a) {
 }
 
 SurfaceCoe* SurfaceCoe::FindMetara(MyMesh::VertexHandle start, MyMesh::VertexHandle end) {
-	SurfaceCoe sfc(start, mesh.point(end), mesh);
-	cout << "Now is finding Metara..." << endl;
+	SurfaceCoe *sfc=new SurfaceCoe(start, mesh.point(end), mesh);
+	//cout << "Now is finding Metara..." << endl;
 	float dd = MAXIMUMX, ss;
 	int metara;
-	for (int i = mIth[0] * 0.13; i < mIth[0] * 0.5; i++) {
-		sfc.SetMidPoint(mOutline2[i].a);
-		if (sfc.Init(0)) {
-			ss = sfc.ReturnLength();
+	for (int i = mIth[0] * 0.13; i < mIth[0]*0.85 ; i++) {
+		sfc->SetMidPoint(mOutline2[i].a);
+		if (sfc->Init(0)) {
+			ss = sfc->ReturnLength();
 			if (ss < dd) {
 				dd = ss;
 				metara = i;   //mLen[2]=i;
 			}
 		}
 	}
+	sfc->PointExchange(mOutline2[metara].a);
 	//cout << "Find Metara ith:" << metara << endl;
 	vector<MyMesh::Point> fm;
-	sfc.InitMidEndPoint(fm);
+	sfc->InitMidEndPoint(fm);
 	if (fm.size() < 2) {
 		cout << "metara point error" << endl;
 		return NULL;
 	}
+	sfc->GiveMidEndPoint(fm[0],fm[1]);
 	//cout << fm[0] << endl;
 	//cout << fm[1] << endl;
-	MyMesh::VertexHandle sfcstartp = FindNearest(mOutline2[metara].a);
+	//MyMesh::VertexHandle sfcstartp = FindNearest(mOutline2[metara].a);
 	
-	SurfaceCoe *ret = new SurfaceCoe(fm[0], fm[1], sfcstartp, mesh);
+	//SurfaceCoe *ret = new SurfaceCoe(fm[0], fm[1], sfcstartp, mesh);
 	//SurfaceCoe *ret = new SurfaceCoe(MyMesh::Point(160.563766,34.669678,2.144665),MyMesh::Point(146.947586,-44.111824,3.824428),sfcstartp,mesh);//手动给出底边的两个点
-	ret->Init(0);
-	ret->SetMIth(metara);
-	return ret;
+	//ret->Init(0);
+	//ret->SetMIth(metara);
+	sfc->SetMIth(metara);
+	return sfc;
 }
 
 SurfaceCoe* SurfaceCoe::FindWaistLine(SurfaceCoe *met) {  //腰围和背围可以使用同一个函数，其原理相同
@@ -1727,8 +1751,8 @@ int SurfaceCoe::UpOneInch(int ith, MyMesh::Point &af) {
 		dis += (mOutline2[i].a - k).norm();
 		k = mOutline2[i].a;
 		if (dis >= ONEINCHLEN) {
-			af= mOutline2[i].a;
-			return i;
+			af= mOutline2[i-1].a;
+			return i-1;
 		}
 	}
 	return -1;
@@ -1777,11 +1801,7 @@ Vector3f SurfaceCoe::AxieCut(float heelhight) {
 
 vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp,SurfaceCoe *met,Vector3f axi) {
 	float xi = exp>0 ? -exp / met->ReturnLength():exp/met->ReturnLength();
-	struct CutArry2 {
-		MyMesh::Point a;
-		float x = 1;
-		Vector3f n; 
-	};
+
 	float ju,max0,max1;
 	max0 = met->DistSurface(mVertexStart);
 	max1 =abs(met->DistSurface(mVertexMid));
@@ -1800,7 +1820,8 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp,SurfaceCoe *met,Vector3
 	Quaternionx out;
 	int interv = mIth[0] / CUTSECTION3; //把第一段分成37份
 	printf("inverv: %d\n", interv);
-	for (int i = 1; i < CUTSECTION3; i++) {
+	for (int i = 1; i < CUTSECTION3; i++) 
+	{
 		struct CutArry2 st;
 		st.a = mOutline2[i*interv].a;
 		cout <<i<<" : "<< i*interv << endl;
@@ -1863,17 +1884,20 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp,SurfaceCoe *met,Vector3
 	return  arryx;
 }
 
-vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *met,float heelh) { //改用距离做分量
+vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *met,float heelh) //改用距离做分量
+{ 
 	float xi = exp>0 ? -exp / met->ReturnLength() : exp / met->ReturnLength();
 	//中轴横截点
 	float szz = (mVertexMid - mVertexEnd).norm();
 	float ssst = heelh*0.4 + szz*0.25;
 	//printf("szzz:%f  ssst:%f\n", szz, ssst);
 	MyMesh::Point axip;
-	if (ssst >= szz) {
+	if (ssst >= szz) 
+	{
 		axip = mVertexMid;
 	}
-	else {
+	else 
+	{
 		axip = (mVertexMid - mVertexEnd)*(heelh*(0.4)/szz + 0.25) + mVertexEnd;
 	}
 	Vector3f axi(mVertexStart[0] - axip[0], mVertexStart[1] - axip[1], mVertexStart[2] - axip[2]);
@@ -1883,11 +1907,7 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *met,float 
 	cout << axip << endl;
 	cout << axi << endl;*/
 
-	struct CutArry2 {
-		MyMesh::Point a;
-		float x = 1;
-		Vector3f n;
-	};
+
 	float ju, max0, max1;
 	max0 = met->DistSurface(mVertexStart);
 	max1 = abs(met->DistSurface(axip)); //vertexMid or vertexend
@@ -1920,7 +1940,8 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *met,float 
 		}
 		ith--;
 		ack = mOutline2[ith - 1].a;
-		if (ith >= (mIth[0]-10)) {
+		if (ith >= (mIth[0]-10)) 
+		{
 			break;
 		}
 	//	printf("i:%d ith:%d lislen:%f\n",i, ith, linslen);
