@@ -449,14 +449,11 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx) { //这个需要考虑变的方
 
 	int sta = 0, end = 0;
 
+	vector<MyMesh::VertexHandle>select; //选取最后不连续点进行滤波；
+
 	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
 	{
-		/*oc++;
-		if (!(oc % 10000)) {
-			cout << "now is :" << (oc * 100 / k) << "%" << endl;
-		}*/
 		p = mesh.point(*v_it);
-
 
 		int i = arrlen / 2;
 		end = arrlen;
@@ -483,11 +480,11 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx) { //这个需要考虑变的方
 			else if (arr[i]->DistSurface(p) < 0) {
 				if (arr[i + 1]->DistSurface(p) < 0) {
 					if (i == (arrlen - 2)) {  //1
-						//p += arr[i + 1]->FindNearestPoint(p, s1); //s==0;
-						nf = mesh.normal(*v_it);
-						//nf = exp > 0 ? nf*(-1) : nf;
-						//nf.normalized();
-						p += nf*arr[i + 1]->FindNearestPointF(p, s1);
+						p += arr[i + 1]->FindNearestPoint(p, s1); //s==0;
+						/*nf = mesh.normal(*v_it);
+						nf.normalized();
+						p += nf*(arr[i + 1]->FindNearestPointF(p, s1));*/
+						select.push_back(mesh.vertex_handle(v_it->idx()));
 						break;
 					}
 					sta = i;
@@ -508,6 +505,68 @@ void MyOpenMesh::ShoeExpansion(vector<SurfaceCoe*> &arrx) { //这个需要考虑变的方
 		}
 		mesh.set_point(*v_it, p);
 	}
+	TailGaussionFilter(select, 6);//滤波五次
+	TotalGaussionFilter(2);
+}
+
+void MyOpenMesh::TotalGaussionFilter(int count) { //全局滤波
+	float sigma = 1;
+	int inc = count;
+	MyMesh::Point p;
+	MyMesh::VertexHandle h;
+	while (inc--) {
+		for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
+		{
+			p = mesh.point(*v_it);
+			h = mesh.vertex_handle(v_it->idx());
+			vector<MyMesh::Point> vtemp;
+			vtemp.push_back(p);
+			for (MyMesh::VertexVertexIter vv_it = mesh.vv_begin(h); vv_it.is_valid(); ++vv_it)
+			{
+				vtemp.push_back(mesh.point(mesh.vertex_handle(vv_it->idx())));
+			}
+			p = GaussionArroundVertex(vtemp, sigma);
+			mesh.set_point(h, p);
+		}
+	}
+}
+
+void MyOpenMesh::TailGaussionFilter(vector<MyMesh::VertexHandle>& vm,int count)
+{
+	MyMesh::Point p;
+	float sigma = 1;
+	int num = count;
+	while (num--) {
+		for (auto i : vm) {
+			p = mesh.point(i);
+			vector<MyMesh::Point> vtemp;
+			vtemp.push_back(p);
+			for (MyMesh::VertexVertexIter vv_it = mesh.vv_begin(i); vv_it.is_valid(); ++vv_it)
+			{
+				vtemp.push_back(mesh.point(mesh.vertex_handle(vv_it->idx())));
+			}
+			p = GaussionArroundVertex(vtemp, sigma);
+			mesh.set_point(i, p);
+		}
+	}
+}
+
+MyMesh::Point MyOpenMesh::GaussionArroundVertex(vector<MyMesh::Point>& pGray,float sigma) {
+	int sz = pGray.size();
+	float dWeightSum = 0;//滤波系数总和  
+
+	MyMesh::Point dDotMul(0, 0, 0);//高斯系数与图像数据的点乘  
+	float dDis, dValue;
+
+	for (int i = 0; i<sz; i++)
+	{
+		dDis = (pGray[0] - pGray[i]).norm();//距离
+		dValue = exp(-(1 / 2)*dDis*dDis / (sigma*sigma)) / (sqrt(2 * 3.1415926)*sigma);
+
+		dDotMul += dValue*pGray[i];//叠加的点坐标
+		dWeightSum += dValue;
+	}
+	return dDotMul / dWeightSum;
 }
 
 void MyOpenMesh::ShoeExpansionWist(vector<SurfaceCoe*> &arr) {
@@ -641,7 +700,7 @@ void MyOpenMesh::ShoeExpansionWist2(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe
 	}
 
 	map<int, MyMesh::Point>::iterator it, it_s;
-	for (int i = 0; i < 5; i++) { //迭代3次
+	for (int i = 0; i < 5; i++) { //迭代5次滤波
 		it = select.begin();
 		for (; it != select.end(); it++) {
 			//set<int> cvm;
@@ -678,10 +737,10 @@ MyMesh::Point MyOpenMesh::GaussFilter(vector<MyOutBottom>&pGray,float sigma) {
 	float dDis, dValue;
 	for (int i = 0; i<sz; i++)
 	{
-		dDis = (pGray[0].a - pGray[i].a).norm();
+		dDis = (pGray[0].a - pGray[i].a).norm();//距离
 		dValue = exp(-(1 / 2)*dDis*dDis / (sigma*sigma)) / (sqrt(2 * 3.1415926)*sigma);
 
-		dDotMul += dValue*pGray[i].s;
+		dDotMul += dValue*pGray[i].s;//叠加的点坐标
 		dWeightSum += dValue;
 	}
 	return dDotMul / dWeightSum;
@@ -731,13 +790,33 @@ SurfaceCoe::SurfaceCoe(Vector3f bf, MyMesh::VertexHandle df, float x, MyMesh &b)
 	mCoe.data()[3] = d;
 	//mCoe= Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
 }
-SurfaceCoe::SurfaceCoe(MyMesh::Point mid, MyMesh::Point end, MyMesh::VertexHandle c, MyMesh &d) :
+SurfaceCoe::SurfaceCoe(MyMesh::Point mid, MyMesh::Point end, MyMesh::VertexHandle cf, MyMesh &d) :
 	mesh(d),
-	mHandleBegin(c),
+	mHandleBegin(cf),
 	mVertexMid(mid),
 	mVertexEnd(end)
 {
-	mVertexStart = mesh.point(c);
+	mVertexStart = mesh.point(cf);
+
+	Vector3f a = MyOpenMesh::EigenTransfer(mVertexStart);
+	Vector3f b = MyOpenMesh::EigenTransfer(mVertexMid);
+	Vector3f c = MyOpenMesh::EigenTransfer(mVertexEnd);
+	Vector3f ab = a - b;
+	ab = (a - c).cross(ab);
+	//mCoeABC = Vector3f(ab[0], ab[1], ab[2]);
+
+	mCoeABC.data()[0] = ab[0];
+	mCoeABC.data()[1] = ab[1];
+	mCoeABC.data()[2] = ab[2];
+
+	float df = ab.dot(Vector3f(0, 0, 0) - a) / mCoeABC.norm();
+	mCoeABC.normalize();
+	//mCoe = Vector4f(mCoeABC[0], mCoeABC[1], mCoeABC[2], d);
+
+	mCoe.data()[0] = mCoeABC[0];
+	mCoe.data()[1] = mCoeABC[1];
+	mCoe.data()[2] = mCoeABC[2];
+	mCoe.data()[3] = df;
 }
 
 
@@ -828,6 +907,19 @@ bool SurfaceCoe::Init(int cmd){//(MyMesh::VertexHandle *vertex,MyMesh &mmesh){
 				heh = mesh.next_halfedge_handle(heh);
 				IterationHalfEdge(heh);
 				ini = 1;
+			}
+		}
+	}
+	if (!ini) {
+		for (MyMesh::VertexOHalfedgeIter voh_it = mesh.voh_iter(mHandleBegin); voh_it.is_valid(); ++voh_it) {
+			heh = mesh.halfedge_handle(voh_it->idx());
+			Vector3f jug = NextHalfEdgeJudge2(mesh.next_halfedge_handle(heh));
+			if (jug != Vector3f(9999, 9999, 9999)) {
+				if (mVertexStart[1]< jug[1]) {
+					heh = mesh.next_halfedge_handle(heh);
+					IterationHalfEdge(heh);
+					ini = 1;
+				}
 			}
 		}
 	}
@@ -1211,6 +1303,7 @@ void SurfaceCoe::InitMidEndPoint(vector<MyMesh::Point>&fw) {
 		}
 	}//默认情况下bot应该处于500左右范围内的值(该值远远大于window窗口滤波范围)
 	upstep = abs((topv - lin) / 7);
+	//cout << "topv: " << topv << " " << lin << endl;
 	//cout << upstep << endl;
 	//set<MyBotOutLine> sum1,sum2;//for debug
 	lin = 0; int ith=0;
@@ -1626,7 +1719,7 @@ SurfaceCoe* SurfaceCoe::FindMetara(MyMesh::VertexHandle start, MyMesh::VertexHan
 			}
 		}
 	}
-	sfc->PointExchange(mOutline2[metara].a);
+	MyMesh::VertexHandle sfcstartp=sfc->PointExchange(mOutline2[metara].a);
 	//cout << "Find Metara ith:" << metara << endl;
 	vector<MyMesh::Point> fm;
 	sfc->InitMidEndPoint(fm);
@@ -1634,17 +1727,17 @@ SurfaceCoe* SurfaceCoe::FindMetara(MyMesh::VertexHandle start, MyMesh::VertexHan
 		cout << "metara point error" << endl;
 		return NULL;
 	}
-	sfc->GiveMidEndPoint(fm[0],fm[1]);
-	//cout << fm[0] << endl;
-	//cout << fm[1] << endl;
+	//sfc->GiveMidEndPoint(fm[0],fm[1]);
+
 	//MyMesh::VertexHandle sfcstartp = FindNearest(mOutline2[metara].a);
-	
-	//SurfaceCoe *ret = new SurfaceCoe(fm[0], fm[1], sfcstartp, mesh);
+	SurfaceCoe *ret = new SurfaceCoe(fm[0], fm[1], sfcstartp, mesh);
 	//SurfaceCoe *ret = new SurfaceCoe(MyMesh::Point(160.563766,34.669678,2.144665),MyMesh::Point(146.947586,-44.111824,3.824428),sfcstartp,mesh);//手动给出底边的两个点
-	//ret->Init(0);
-	//ret->SetMIth(metara);
-	sfc->SetMIth(metara);
-	return sfc;
+	ret->Init();
+	ret->CoquerMidEnd();
+	ret->SetMIth(metara);
+	//sfc->SetMIth(metara);
+	delete sfc;
+	return ret;
 }
 
 SurfaceCoe* SurfaceCoe::FindWaistLine(SurfaceCoe *met) {  //腰围和背围可以使用同一个函数，其原理相同
@@ -1656,17 +1749,17 @@ SurfaceCoe* SurfaceCoe::FindWaistLine(SurfaceCoe *met) {  //腰围和背围可以使用同
 			ccmid = i;
 		}
 	}
-	MyMesh::Point mdp, enp,of;
+	MyMesh::Point mdp, enp, of;
 	int iith = UpOneInch(met->ReturnIth(2),of);
 	MyMesh::VertexHandle start = FindNearest(of);
-	
 
 	float min = MAXIMUMX; int mid = 0;
 	for (int i = mIth[1]+10; i < ccmid ; i++) {
 		mdp = enp = mOutline2[i].a;
 		enp[1] += 1;
 		SurfaceCoe sfc(mdp, enp, start ,mesh);
-		if (sfc.Init(2)) {
+		if (sfc.Init()) {
+			sfc.CalculateLen();
 			lin = sfc.ReturnLength();
 			if (lin <min ) {
 				min = lin;
@@ -1675,11 +1768,15 @@ SurfaceCoe* SurfaceCoe::FindWaistLine(SurfaceCoe *met) {  //腰围和背围可以使用同
 		}
 	}
 	//cout << "Waist Ith:" << mid << endl;
+	if (!mid) {
+		cout << "mid error!" << endl;
+	}
 	mdp = enp = mOutline2[mid].a;
 	enp[1] += 1;
 	SurfaceCoe* ret= new SurfaceCoe(enp,mdp, start, mesh);
 	ret->SetMIth(iith);
-	ret->Init(2);
+	ret->Init();
+	ret->InitMidEndPoint();
 	return ret;
 }
 
@@ -1758,6 +1855,76 @@ int SurfaceCoe::UpOneInch(int ith, MyMesh::Point &af) {
 	return -1;
 }
 
+SurfaceCoe* SurfaceCoe::SfcMoveXLen(SurfaceCoe *toe,float x) 
+{
+	if ((!x) || (x<0)) {
+		cout << "Toe x is Zero or minus!" << endl;
+		return NULL;
+	}
+	MyMesh::Point pstart = mOutline2[mIth[1]].a;
+	float tdist = 0; int  iith;
+	for (int i = toe->ReturnIth(2); i < mOutline2.size(); i++) {
+		tdist += (pstart - mOutline2[i].a).norm();
+		if (tdist > x) {
+			iith = i - 1; //定出跖围在鞋楦底部的起始点
+			break;
+		}
+	}
+	MyMesh::VertexHandle start = FindNearest(mOutline2[iith].a);
+	SurfaceCoe *metc = new SurfaceCoe(toe->ReturnCoe(), start, 0, mesh);
+	metc->Init();
+	metc->SetMIth(iith);
+	return metc;
+}
+
+SurfaceCoe* SurfaceCoe::FindToeBottomPoint(float dis)
+{
+	if ((!dis)||(dis<0)) {
+		cout << "Toe dis is Zero!" << endl;
+		return NULL;
+	}
+	MyMesh::Point pstart = mOutline2[mIth[1]].a;
+	float tdist = 0; int  iith;
+	for (int i = mIth[1]+1; i < mOutline2.size();i++) {
+		tdist += (pstart - mOutline2[i].a).norm();
+		if (tdist > dis) {
+			iith = i - 1; //定出跖围在鞋楦底部的起始点
+			break;
+		}
+	}
+
+	MyMesh::Point mdp, enp;
+	MyMesh::VertexHandle start = FindNearest(mOutline2[iith].a);
+
+	float min = MAXIMUMX; int mid = 0;
+	float templen = 0;
+	for (int i = 10; i < mIth[0]-50; i++) {
+		mdp = enp = mOutline2[i].a;
+		enp[1] += 1;
+		SurfaceCoe sfc(mdp, enp, start, mesh);
+		if (sfc.Init()) {
+			sfc.CalculateLen();
+			templen = sfc.ReturnLength();
+			if (templen <min) {
+				min = templen;
+				mid = i;   //这个是定出底部，在线段上半部分找一个最小围度点；
+			}
+		}
+	}
+	if (!mid) {
+		cout << "mid error!" << endl;
+	}
+	start= FindNearest(mOutline2[mid].a);
+	mdp = enp = mOutline2[iith].a;
+	enp[1] += 1;
+	SurfaceCoe* ret = new SurfaceCoe(enp, mdp, start, mesh);
+	ret->SetMIth(iith);
+	ret->Init();
+	ret->InitMidEndPoint();
+	return ret;
+}
+
+
 MyMesh::VertexHandle SurfaceCoe::FindNearest(MyMesh::Point a) {  //2
 	MyMesh::VertexIter  v_it, v_end(mesh.vertices_end());
 	MyMesh::VertexIter	v_it_s;
@@ -1772,6 +1939,19 @@ MyMesh::VertexHandle SurfaceCoe::FindNearest(MyMesh::Point a) {  //2
 		}
 	}
 	return  mesh.vertex_handle(v_it_s->idx());
+}
+
+int SurfaceCoe::FindNearestOutline(MyMesh::Point a) {
+	float lin = MAXIMUMX,ch;
+	int ith = 0;
+	for (int i = 0; i < mOutline2.size(); i++) {
+		ch = (a-mOutline2[i].a).norm();
+		if (lin > ch) {
+			lin = ch;
+			ith = i;
+		}
+	}
+	return ith;
 }
 
 Vector3f SurfaceCoe::AxieCut(float heelhight) {
@@ -1902,11 +2082,6 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *met,float 
 	}
 	Vector3f axi(mVertexStart[0] - axip[0], mVertexStart[1] - axip[1], mVertexStart[2] - axip[2]);
 	axi.normalize();
-	/*cout << axi << endl;
-	axi.normalize();
-	cout << axip << endl;
-	cout << axi << endl;*/
-
 
 	float ju, max0, max1;
 	max0 = met->DistSurface(mVertexStart);
@@ -1963,8 +2138,8 @@ vector<MySurCutArry> SurfaceCoe::OutCutOutline(float exp, SurfaceCoe *met,float 
 				sts.a = met->ReturnStartPoint();
 				arry.push_back(sts);
 			}
-			//st.x = xi;
-			st.x = xi*(1 - abs(ju) / max1);
+			st.x = xi;
+			//st.x = xi*(1 - abs(ju) / max1);
 			lin = thert*(abs(ju) / max1);
 		}
 		else {

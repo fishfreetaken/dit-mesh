@@ -183,6 +183,9 @@ private:
 
 	//vector<MyMesh::VertexHandle> mShoeBottom;		//鞋楦底板；//这个应该是需要的
 	//vector<MyMesh::VertexHandle> mWristTop;		//碗口顶部部分；
+	void TailGaussionFilter(vector<MyMesh::VertexHandle>& vm,int count);
+	MyMesh::Point  GaussionArroundVertex(vector<MyMesh::Point>& sm,float sigma);
+	void MyOpenMesh::TotalGaussionFilter(int count);
 };
 typedef struct MyOpenMesh::OutBottom MyOutBottom;
 typedef struct MyOpenMesh::OutNoraml MyOutNormal;
@@ -221,17 +224,22 @@ public:
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
 	SurfaceCoe* FindWaistLine(SurfaceCoe *met);
+	SurfaceCoe* FindToeBottomPoint(float a);//根据输入的趾围在鞋楦底板的三个距离（ab-4，gb-4，hb-4）来定位趾围的坐标，具体可以参考文档说明
+	SurfaceCoe* SfcMoveXLen(SurfaceCoe *toe, float x);
+
 	float FindAddLenth(SurfaceCoe *met,float ext);
 
 	int UpOneInch(int ith, MyMesh::Point &a);
+	
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
+	
 
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigenM(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigen(vector<Vector4f> *a);
 	bool OutlineEigenf(const char *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
-	void PointExchange(MyMesh::Point a){
+	MyMesh::VertexHandle PointExchange(MyMesh::Point a){
 		if (mVertexStart[1] > 0) {
 			mVertexMid = mVertexStart;
 			mVertexEnd = mVertexEnd;
@@ -260,10 +268,7 @@ public:
 		mVertexStart = mesh.point(*v_it_s);
 		mHandleBegin = mesh.vertex_handle(v_it_s->idx());
 		Init(0);
-	}
-	void GiveMidEndPoint(MyMesh::Point mid, MyMesh::Point end) {
-		mVertexMid = mid;
-		mVertexEnd = end;
+		return mHandleBegin;
 	}
 	
 	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
@@ -281,6 +286,7 @@ public:
 	}*/
 	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
 	float FindNearestPointF(MyMesh::Point a, float &s);
+	int FindNearestOutline(MyMesh::Point a);
 
 	float ReturnExtension() { return mExtension; }
 	float ReturnLength() { 	return mLength;}
@@ -289,7 +295,15 @@ public:
 
 	int ReturnIth(int i) { return mIth[i]; }
 	void SetMIth(int i) { mIth[2] = i; }
+
+	void SetMIth(SurfaceCoe*sfc) {
+		mIth[2]=sfc->FindNearestOutline(mVertexStart);
+	}
+
 	MyMesh::VertexHandle ReturnVertexHandle() { return mHandleBegin; }
+	void ReturnTriPoint(MyMesh::VertexHandle *vr, MyOpenMesh&ios) {
+		ios.FindNearest(mVertexStart,mVertexMid,mVertexEnd, vr);
+	}
 	
 	void InitMidEndPoint(vector<MyMesh::Point>&a);
 	
@@ -308,6 +322,10 @@ public:
 
 	int InitMidTopPoint(vector<MyMesh::Point>&a);
 	void InitMidTopPoint(vector<MyMesh::Point>&fw, float x);
+
+	void CalculateLen() { mLength = TotalLengh(mOutline2); }
+
+	void CoquerMidEnd();		//寻找中值点以及终值点
 private:
 	MyMesh &mesh;
 
@@ -329,7 +347,7 @@ private:
 	void AddOutlinePoint(MyMesh::VertexHandle a, MyMesh::VertexHandle b);//添加outline主体的点
 
 	void OutlineRefine();		//平滑outline
-	void CoquerMidEnd();		//寻找中值点以及终值点
+	
 	float OutlineExpansion();	//变形扩围，放入相应的allocatexcoe里面
 	//void InitMidEndPoint();
 
@@ -503,7 +521,7 @@ private:
 		}
 	};
 	//void AxieSurfacePoint(MyMesh::Point a, MyMesh::Point b, MyMesh::Point cs); //计算点在直线上的投影
-
+	
 };
 
 typedef struct SurfaceCoe::CutArry MySurCutArry;
