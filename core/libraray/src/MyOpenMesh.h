@@ -150,6 +150,7 @@ public:
 	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
 	void ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc);
 	void ShoeExpansionWist2(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc);
+	void ShoeExpansionWist3(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc,float exp);
 	void ShoeExpansion(vector<SurfaceCoe*> &arr, vector<MyMesh::Point>&css); //debug
 	
 	void ShoeAddLength(MyMesh::Point a, SurfaceCoe*met, float exp);

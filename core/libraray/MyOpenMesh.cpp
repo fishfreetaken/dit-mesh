@@ -729,6 +729,73 @@ void MyOpenMesh::ShoeExpansionWist2(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe
 	}
 }
 
+void MyOpenMesh::ShoeExpansionWist3(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc,float exp) {
+	//cout << "Now is shoe wist2 Expansing..." << endl;
+	MyMesh::Point p, p1, p2; float lin, s1, s2;
+	//int cis = 4;//迭代次数4次
+	float sigma = 1;
+	SurfaceCoe *smc;
+	map<int, MyMesh::Point>select;
+	float ran = exp; //mm 扩散缓冲区域
+	struct scc {
+		int i;//main
+		vector<int> veh;
+	};
+	for (MyMesh::VertexIter v_it = mesh.vertices_begin(); v_it != mesh.vertices_end(); ++v_it)
+	{
+		p = mesh.point(*v_it);
+		lin = meta->DistSurface(p);
+		if (lin >= ran) {
+			continue;
+		}
+		if ((lin >0) && (lin < ran)) {
+			select[v_it->idx()] = MyMesh::Point(0, 0, 0);
+			continue;
+		}
+		lin = metc->DistSurface(p);
+		if (lin <= -ran) {
+			continue;
+		}
+		if ((lin > -ran) && (lin <0)) {
+			select[v_it->idx()] = MyMesh::Point(0, 0, 0);
+			continue;
+		}
+		smc = metb->DistSurface(p) > 0 ? meta : metc;
+		p1 = metb->FindNearestPoint(p, s1);
+		p2 = smc->FindNearestPoint(p, s2);
+		select[v_it->idx()] = p1*(s2 / (s1 + s2));// + p2*(s1 / (s1 + s2));
+	}
+
+	map<int, MyMesh::Point>::iterator it, it_s;
+	for (int i = 0; i < 10; i++) { //迭代5次滤波
+		it = select.begin();
+		for (; it != select.end(); it++) {
+			//set<int> cvm;
+			//BotIteration(cvm, it->first, 0);
+			vector<MyOutBottom> smv;
+			for (MyMesh::VertexVertexIter vv_it = mesh.vv_iter(mesh.vertex_handle(it->first)); vv_it.is_valid(); ++vv_it)
+			{
+				it_s = select.find(vv_it->idx());
+				MyOutBottom git;
+				if (it_s == select.end()) {
+					git.a = mesh.point(mesh.vertex_handle(vv_it->idx()));
+					git.s = MyMesh::Point(0, 0, 0);
+					smv.push_back(git);
+					continue;
+				}
+				git.a = mesh.point(mesh.vertex_handle(vv_it->idx()));
+				git.s = select[vv_it->idx()];
+				smv.push_back(git);
+			}
+			it->second = GaussFilter(smv, sigma);
+		}
+	}
+	for (it = select.begin(); it != select.end(); it++) {
+		p = mesh.point(mesh.vertex_handle(it->first)) + it->second;
+		mesh.set_point(mesh.vertex_handle(it->first), p);
+	}
+}
+
 MyMesh::Point MyOpenMesh::GaussFilter(vector<MyOutBottom>&pGray,float sigma) {
 	int sz = pGray.size();
 	float dWeightSum=0;//滤波系数总和  
@@ -1863,10 +1930,11 @@ SurfaceCoe* SurfaceCoe::SfcMoveXLen(SurfaceCoe *toe,float x)
 	}
 	MyMesh::Point pstart = mOutline2[mIth[1]].a;
 	float tdist = 0; int  iith;
-	for (int i = toe->ReturnIth(2); i < mOutline2.size(); i++) {
+	for (int i = mIth[1]+1; i < mOutline2.size(); i++) {
 		tdist += (pstart - mOutline2[i].a).norm();
+		pstart = mOutline2[i].a;
 		if (tdist > x) {
-			iith = i - 1; //定出跖围在鞋楦底部的起始点
+			iith = i - 1; //定出跖围在鞋楦底部的起始点	
 			break;
 		}
 	}
@@ -1887,6 +1955,7 @@ SurfaceCoe* SurfaceCoe::FindToeBottomPoint(float dis)
 	float tdist = 0; int  iith;
 	for (int i = mIth[1]+1; i < mOutline2.size();i++) {
 		tdist += (pstart - mOutline2[i].a).norm();
+		pstart = mOutline2[i].a;
 		if (tdist > dis) {
 			iith = i - 1; //定出跖围在鞋楦底部的起始点
 			break;

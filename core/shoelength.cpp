@@ -69,15 +69,37 @@ string increname(int i,string ghead) {
 
 bool ToeExpansion(MyOpenMesh&ios, SurfaceCoe*sfc, SurfaceCoe*toe,float dist,float exp)
 {
-	//toe=sfc->FindToeBottomPoint(dist);
+	//vector<Vector3f> outline;
+	cout << "正在对趾围变形..." << endl;
 	
+	float range = 9;
 	SurfaceCoe *toea, *toeb;
-	toea = sfc->SfcMoveXLen(toe,7);//控制在前后qi毫米左右
-	toeb = sfc->SfcMoveXLen(toe, 7);
+	toea = sfc->SfcMoveXLen(toe,dist+ range);//控制在前后7毫米左右
+	toeb = sfc->SfcMoveXLen(toe, dist- range);
 	toe->AllocateXCoe(exp);//将该围度扩大到指定围长
-	ios.ShoeExpansionWist2(toea, toe, toeb);
+	ios.ShoeExpansionWist3(toea, toe, toeb, range);
+
+	/*toe->OutlineEigenM(&outline);
+	ManageObj::OutFilePointObj(&outline, "toeaf-outline.obj");
+	outline.clear();
+
+	toeb->OutlineEigen(&outline);
+	ManageObj::OutFilePointObj(&outline, "toeb-outline.obj");
+	outline.clear();
+
+	toea->OutlineEigen(&outline);
+	ManageObj::OutFilePointObj(&outline, "toea-outline.obj");
+	outline.clear();*/
+
 	delete toea;
 	delete toeb;
+
+#ifdef OUTPUTFILET
+	ios.WriteStlfile("Toe-ext-Large.stl", 1);
+#endif // OUTPUTFILET
+	//ios.WriteStlfile("Last-ext-Large.stl", 1);
+	cout << "趾围变形结束!" << endl;
+	return 1;
 }
 
 bool BackExpansion(MyOpenMesh&ios, SurfaceCoe*back, SurfaceCoe*wist, SurfaceCoe* &sfc, float exp) {
@@ -308,7 +330,8 @@ int main(int argc, char* argv[])
 	//ios.ReadStlfile("PFH-60-BZ-6.stl");
 	//ios.ReadStlfile(stlfilename.c_str());
 	float heelhight = 60;
-	float giveout[] = { 0,5,5,3 }; //长度，掌围，腰围，背围
+	float giveout[] = { 0,5,5,3 }; //长度，掌围，腰围，背围, 趾围1位置，趾围1变形，趾围2位置，趾围2变形。。。
+	float toechange[] = { 179,2 };
 
 	/*最新的思路可以使用向量方差值最大，以及最底层校验相结合的方法进行处理*/
 	//vector<MyMesh::Point> bottomline;//底部轮廓线的提取
@@ -324,7 +347,7 @@ int main(int argc, char* argv[])
 	ios.FindNearest(p[0], p[1], p[2], vertex2);		//初始化最近位置 p[0], p[1], p[2],
 
 	bool judge = false;
-	SurfaceCoe *sfc, *meta, *wist, *back;
+	SurfaceCoe *sfc, *meta, *wist, *back,*toe=NULL;
 
 	sfc = new SurfaceCoe(vertex, ios.mesh); //中轴横截面
 	if (!sfc->Init(1)) {
@@ -377,15 +400,22 @@ int main(int argc, char* argv[])
 		//meta = sfc->FindMetara(vertex2[0], vertex2[2]);	//重新初始化掌围
 	}
 	
+	MyMesh::VertexHandle vertex_wist[3], vertex_back[3], vertex_toe[3];
+
 	wist = sfc->FindWaistLine(meta); //垂直于x轴寻找腰围
 	back = sfc->FindWaistLine(wist); //垂直于x轴寻找背围
 
+	float lentoe = 0;
+	if (toechange[0]) {
+		toe = sfc->FindToeBottomPoint(toechange[0]);
+		lentoe = toe->ReturnLength();
+		toe->ReturnTriPoint(vertex_toe, ios);
+	}
+
 	float lenwist = wist->ReturnLength();
 	float lenback = back->ReturnLength();
-
-	MyMesh::VertexHandle vertex_wist[3], vertex_back[3];
+	
 	wist->ReturnTriPoint(vertex_wist,ios);
-
 	back->ReturnTriPoint(vertex_back,ios);
 	
 	/*sfc->OutlineEigen(&outline);
@@ -420,8 +450,21 @@ int main(int argc, char* argv[])
 		back = new SurfaceCoe(vertex_back, ios.mesh);
 		back->Init(0);
 		back->SetMIth(sfc);
+
+		if (toechange[0]) {
+			delete toe;
+			toe = new SurfaceCoe(vertex_toe, ios.mesh);
+			toe->Init(0);
+			toe->SetMIth(sfc);
+		}
 	}
-	
+
+	if (toechange[0]) {
+		lentoe = toe->ReturnLength() - lentoe;
+		lentoe = toechange[1] - lentoe;
+		ToeExpansion(ios, sfc, toe, toechange[0], lentoe);
+	}
+
 	if (giveout[2]) {
 		lenwist = wist->ReturnLength() - lenwist;
 		lenwist = giveout[2] - lenwist;
@@ -478,6 +521,8 @@ int main(int argc, char* argv[])
 	}
 
 	//ios.WriteStlfile(outstlfilename.c_str(), 1);
+
+	
 
 	delete sfc;
 	delete meta;
