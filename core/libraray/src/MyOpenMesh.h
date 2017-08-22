@@ -6,6 +6,7 @@
 #include <OpenMesh/Core/Mesh/PolyMesh_ArrayKernelT.hh>
 //#include "PointVector.h"
 #include"QuaternionSpin.h"
+#include <math.h>
 /*
 	在进行半边迭代求取轮廓线的时候，发现迭代需要消耗一定的内存资源，由于vs所分配的资源有限，所以进行大迭代的情况下很容易出现资源不足导致程序崩溃，所以尽量使用while或者for进行处理
 */
@@ -18,22 +19,17 @@ typedef Quaternion<float, 0> Quaternionx;
 
 #define MAXIMUMX 9999
 
-#define CUTINTERVEL 10 //mm
+//#define CUTINTERVEL 10 //mm
 
-#define CUTSECTION 22  //将跖趾围到高跟处分成22段 21条截面  第一条切线忽略，从arry 1 开始
-#define CUTSECTION2 15  //将跖趾围到鞋尖点处分成15段 14条截面 arr 总共35条截面   第一条切线忽略，从arry
+//#define CUTSECTION 22  //将跖趾围到高跟处分成22段 21条截面  第一条切线忽略，从arry 1 开始
+//#define CUTSECTION2 15  //将跖趾围到鞋尖点处分成15段 14条截面 arr 总共35条截面   第一条切线忽略，从arry
 #define CUTSECTION3  33  //32个截面
-#define WISTSECTION 16
-#define WISTSECTION2 12 //6
+//#define WISTSECTION 16
+//#define WISTSECTION2 12 //6
 
 #define GAUSSIONFILTERNUM 3
 
 #define ONEINCHLEN 25.4 //mm
-
-//#define SWITCHOPEN 1	//使用距离作为系数
-//#define SWITCHOPEN2 1 //指定特定的系数
-#define OUTFILEBACK 1
-#define STTWISTX 1
 
 #define ITERATIONCISHU 9
 #define ITERATIONCISHUPOINT 3//腰围跟背围的高斯滤波邻域范围 4
@@ -42,6 +38,14 @@ typedef Quaternion<float, 0> Quaternionx;
 
 #define DIFWINDOW 7 //给出求方差的窗口大小
 //#define SHOEBOTTOMLL 2 //在底部提取的过程中，用来区别使用set还是vector,vector可能会快很多
+
+#define ADDLENGTHSTEP   0.055 //0.01
+
+#define MIDDLEFILTERMOVE 17 //平滑的cutout平面起始处
+
+#define FILETERDIFFERMETARA 0.09
+
+#define COEINVERWIDEN  0.5  //反向加宽系数；
 
 class SurfacePure 
 {
@@ -105,6 +109,9 @@ public:
 		float d=0;	//记录起始点到该点的距离
 		MyMesh::Point f=MyMesh::Point(0,0,0); //记录相对于原来的递增量
 		MyMesh::Point m= MyMesh::Point(0, 0, 0); //记录移动后坐标
+
+		float q = 0;//这个用来记录该点到前平面的下平面的距离；0
+		float h = 0;//这个用来记录该点到后平面的下平面距离； 1
 		
 		//MyMesh::Point pro = MyMesh::Point(0, 0, 0); //记录增长的比率
 		//float k = 0;//扩散增量
@@ -145,7 +152,11 @@ public:
 	void FindNearest(MyMesh::Point a, MyMesh::Point b, MyMesh::Point c, MyMesh::VertexHandle *p);
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 
-	void ShoeExpansion(vector<SurfaceCoe *> &arr);
+	//void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfaceCoe*sfc,vector<Vector3f>&giv);
+	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfaceCoe*sfc);
+	void ShoeExpansion(vector<SurfaceCoe *> &arr, SurfaceCoe*sfc, SurfaceCoe*meta);
+	MyMesh::Point VertexFilter(MyMesh::VertexHandle vh);//近距离占比例比较大；
+	MyMesh::Point VertexFilter2(MyMesh::VertexHandle vh);//远距离占比例比较大；
 
 	void ShoeExpansionWist(vector<SurfaceCoe *> &arr);
 	void ShoeExpansionWist(SurfaceCoe*meta, SurfaceCoe*metb, SurfaceCoe*metc);
@@ -157,10 +168,9 @@ public:
 
 	void ShoeSpin(Quaternionx &a, Vector3f b); //
 
-	//give up
-	void ShoeBottomLine(vector<struct OutBottom>&arrx);
-	void FindFloorContour(vector<MyMesh::Point> &floorContour);
+	void MetaraFileter(SurfaceCoe* meta);//用来对掌围进行一定的平滑滤波
 
+	
 
 private:
 	OpenMesh::IO::Options opt;
@@ -185,9 +195,20 @@ private:
 	//vector<MyMesh::VertexHandle> mShoeBottom;		//鞋楦底板；//这个应该是需要的
 	//vector<MyMesh::VertexHandle> mWristTop;		//碗口顶部部分；
 	void TailGaussionFilter(vector<MyMesh::VertexHandle>& vm,int count);
+	void LaplacianFilter(vector<MyMesh::VertexHandle>& vm, int count);//平均值
+	void LaplacianFilterDist(vector<MyMesh::VertexHandle>& vm, int count);//根据距离进行平均值
 	MyMesh::Point  GaussionArroundVertex(vector<MyMesh::Point>& sm,float sigma);
-	void MyOpenMesh::TotalGaussionFilter(int count);
+
+	void getFaceCentroid(std::vector<MyMesh::Point> &centroid);
+	void updateVertexPosition(
+		std::vector<MyMesh::Normal> &filtered_normals, 
+		int iteration_number, bool fixed_boundary);
+	void updateVertexPosition( vector<MyMesh::VertexHandle>&vmv,
+		std::vector<MyMesh::Normal> &filtered_normals,
+		int iteration_number, bool fixed_boundary);
+
 };
+
 typedef struct MyOpenMesh::OutBottom MyOutBottom;
 typedef struct MyOpenMesh::OutNoraml MyOutNormal;
 typedef struct MyOpenMesh::OutBottomLine MyBotOutLine;
@@ -217,11 +238,11 @@ public:
 	void InitTwoPoints(MyMesh::Point a, MyMesh::Point b) { mVertexMid = a; mVertexEnd = b; CoquerMidEnd(); } //用于一条直线与一个点确定一个平面
 
 	Vector3f AxieCut(float heelhight);//根据中轴线将鞋楦进行切割分切 (等会儿再切！！！)  给出中轴线向量
-	Vector3f TempVector(); //1 临时用手点出来点作为中轴线 //2 使用sfc end点作为中轴线线
+	
 
 	//void OutCutOutline(float a, vector<struct CutArry> &arryx);   //给出沿横切线的分割点；
-	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, Vector3f axi);   //给出沿横切线的分割点；
-	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *a,float h);   //给出沿横切线的分割点；自动给出中轴线的点
+	vector<struct CutArry> OutCutOutline(float exp,SurfaceCoe *a, float h,int*imet);   //给出沿横切线的分割点；
+	vector<struct CutArry> OutCutOutline(float exp, SurfaceCoe *a,float h,int& imet);   //给出沿横切线的分割点；自动给出中轴线的点
 
 	SurfaceCoe *FindMetara(MyMesh::VertexHandle end, MyMesh::VertexHandle mid); //给出起始和end点,沿着中轴线处进行寻找
 	SurfaceCoe* FindWaistLine(SurfaceCoe *met);
@@ -234,9 +255,9 @@ public:
 	
 	MyMesh::VertexHandle FindNearest(MyMesh::Point a);
 	
-
 	bool OutlineEigen(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigenM(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
+	bool OutlineEigenaf(vector<Vector3f> *a); //output vector<Vector3f> outline 输出
 	bool OutlineEigen(vector<Vector4f> *a);
 	bool OutlineEigenf(const char *a);
 	void SetMidPoint(MyMesh::Point a) { mVertexMid = a; }
@@ -272,8 +293,10 @@ public:
 		return mHandleBegin;
 	}
 	
-	float AllocateXCoe(float a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
-	float AllocateXCoe();// (SurfaceCoe*met, MyMesh::Point a, MyMesh::Point b);			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
+	float AllocateXCoe();
+	float AllocateXCoe(float *a);		//初始化增量系数，从底边作为起始点  修改后加入float进行调试
+	float AllocateXCoe(float &a);
+	float AllocateXCoe(float a, float c); // (SurfaceCoe*met, MyMesh::Point a, MyMesh::Point b);			//初始化增量系数，两种不同类型，从横切轮廓中轴点出作为起始点
 	float AllocateXCoe(SurfacePure*met);  //用来处理顶部放量
 	float TopSlide(SurfacePure*met);//用来进行顶点的平滑处理
 
@@ -282,17 +305,14 @@ public:
 		return (a[0] * mCoe[0] + a[1] * mCoe[1] + a[2] * mCoe[2] + mCoe[3]); //Vector4f sa(a[0], a[1], a[2], 1);//return sa.dot(mCoe); // mCoeABC.norm());
 	};
 
-	/*MyMesh::Point GiveMirrorPoint(MyMesh::Point a) {
-
-	}*/
-	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
-	float FindNearestPointF(MyMesh::Point a, float &s);
 	int FindNearestOutline(MyMesh::Point a);
 
 	float ReturnExtension() { return mExtension; }
 	float ReturnLength() { 	return mLength;}
 	Vector3f ReturnCoe() { return mCoeABC; }
 	MyMesh::Point ReturnStartPoint() { return mVertexStart; }
+	MyMesh::Point ReturnMidPoint() { return mVertexMid; }
+	MyMesh::Point ReturnEndPoint() { return mVertexEnd; }
 
 	int ReturnIth(int i) { return mIth[i]; }
 	void SetMIth(int i) { mIth[2] = i; }
@@ -320,13 +340,64 @@ public:
 		InitTwoPoints(mv[0], mv[1]);
 	}
 
-
 	int InitMidTopPoint(vector<MyMesh::Point>&a);
 	void InitMidTopPoint(vector<MyMesh::Point>&fw, float x);
 
 	void CalculateLen() { mLength = TotalLengh(mOutline2); }
+	int ReturnMoutline2Len() { return mOutline2.size(); }
 
 	void CoquerMidEnd();		//寻找中值点以及终值点
+
+	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s);
+	MyMesh::Point FindNearestPoint(MyMesh::Point a, float &s, int i,float m);//这个int i用来判断 0前平面还是 1后平面的；
+	//MyMesh::Point FindNearestPoint(MyMesh::VertexHandle a, float &s);
+	MyMesh::Point FindNearestPoint(MyMesh::Point a, MyMesh::Normal nf, float &s);
+
+	MyMesh::Point ReturnSpecificPoint(int i) {
+		if (i >= mOutline2.size()) {
+			cout << "Specific error Point!" << endl;
+			return MyMesh::Point(0, 0, 0);
+		}
+		return mOutline2[i].a;
+	}
+
+	SurfacePure* LastBottomSurf(SurfaceCoe* sfc) {
+		if (!mOutline2.size()) {
+			cout << "SurfacePure is zeror" << endl;
+			return NULL;
+		}
+		//MyMesh::Point ssp = mOutline2[(mIth[0] + mIth[1]) / 2].a;
+
+		//int iif=sfc->FindNearestOutline(ssp);
+		//iif -= 7;//后移两个点的距离
+
+		//ssp = sfc->ReturnSpecificPoint(iif);
+
+		MyMesh::Point ssp=sfc->ReturnSpecificPoint(sfc->ReturnIth(1));
+		//cout << (mIth[0] + mIth[1]) / 2 << endl;
+		//cout << ssp << endl;
+		SurfacePure *met = new SurfacePure(mOutline2[mIth[0]].a, mOutline2[mIth[1]].a,ssp );
+
+		return met;
+	}
+
+	void initQH(SurfacePure *f, int ii) {  //give up!
+		float ss = 0;
+		for (int i = 0; i < mOutline2.size(); i++) {
+			ss = f->DistSurface(mOutline2[i].a);
+			if (ii) {
+				mOutline2[i].h = ss;
+			}
+			else {
+				mOutline2[i].q = ss;
+			}
+		}
+	}
+
+	float ReturnExtensionli() {
+		return mExtensionli;
+	}
+
 private:
 	MyMesh &mesh;
 
@@ -350,6 +421,8 @@ private:
 	void OutlineRefine();		//平滑outline
 	
 	float OutlineExpansion();	//变形扩围，放入相应的allocatexcoe里面
+	float OutlineExpansion(float *a);
+	float OutlineExpansion(float a);
 	//void InitMidEndPoint();
 
 	int NextHalfEdgeJudge(MyMesh::HalfedgeHandle heh) {
@@ -522,8 +595,55 @@ private:
 		}
 	};
 	//void AxieSurfacePoint(MyMesh::Point a, MyMesh::Point b, MyMesh::Point cs); //计算点在直线上的投影
+	float CrossPointAxi(MyMesh::Point a,MyMesh::Point b) 
+	{
+		//float cc = (a[0] * b[0] + a[1] * b[1] + a[2] * b[2]) / (a.norm()*b.norm());
+		float cc = (a|b) / (a.norm()*b.norm());
+		return cc;
+	}
+
+	/*
+		寻找outline上最近的点的序号；
+	*/
+	int findOutlineNearestIth(MyMesh::Point m)
+	{
+		int t=0;
+		float ini_dist = (m - mOutline2[0].a).norm();
+		float min_dist = ini_dist;
+		for (int i = 1; i < mOutline2.size(); i++) 
+		{
+			ini_dist=(m - mOutline2[i].a).norm();
+			if (ini_dist<min_dist) {
+				min_dist = ini_dist;
+				t = i;
+			}
+		}
+		//findPoint = mOutline2[t].a;
+		return t;
+	}
+
+	float arcLengthFromStartPoint(int axi) {
+		if ((axi < 0) || ((axi+1) > mOutline2.size())) {
+			cout << "Number beyong Erro" << endl;
+			return 0;
+		}
+		float len = 0;
+
+		for (int i = 1; i <=axi; i++) {
+			len+=(mOutline2[i].a- mOutline2[i-1].a).norm();
+		}
+		return len;
+	}
 	
 };
 
 typedef struct SurfaceCoe::CutArry MySurCutArry;
+
+struct SUFACECOETOE { //这个是用来进行围度的初始化配置一个基本的结构体；
+	SurfaceCoe *toe;
+	MyMesh::VertexHandle vertex_handle[3];
+	float pos = 0; //趾围定出相对位置
+
+	float len = 0;
+};
 
